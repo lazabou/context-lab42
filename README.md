@@ -1,2 +1,12 @@
+
 # context-lab42
-A playground for MCP, Junos, and context-driven network automation.
+
+A collaborative playground for experimenting with:
+- Model Context Protocol (MCP)
+- Junos automation
+- Context-driven network workflows
+
+This repo exists so we can test ideas, break things safely,
+and avoid editing the CLI on a Friday.
+
+> Friends don’t let friends edit the CLI.

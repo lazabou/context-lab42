@@ -45,7 +45,9 @@ containerd.io
 sudo apt-mark hold docker-ce docker-ce-cli containerd.io
 
 sudo usermod -aG docker $USER
+
 newgrp docker
+
 exit
 
 Load cRPD image: 

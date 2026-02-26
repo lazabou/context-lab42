@@ -52,3 +52,13 @@ Load cRPD image:
 docker load -i junos-routing-crpd-docker-amd64-24.4R2-S3.5.tgz
 
 # Step 2: deploy cRPD topology
+
+R1, R2 and R3 are backbone routers, R11 and R12 are CEs.
+
+   +------R1-----+           
+   |      |      |           
+R11       |      R3-------R12
+   |      |      |           
+   +------R2-----+   
+
+   

@@ -11,7 +11,7 @@ and avoid editing the CLI on a Friday.
 
 > Friends don’t let friends edit the CLI.
 
-# Step 1: install cRPD topology 
+# Step 1: install docker and load cRPD image
 
 This lab is based on cRDP containers running on docker on an Ubutu server 22.04-LTS.
 
@@ -47,4 +47,4 @@ sudo apt-mark hold docker-ce docker-ce-cli containerd.io
 Load cRPD image: 
 sudo docker load -i junos-routing-crpd-docker-amd64-24.4R2-S3.5.tgz
 
-
+# Step 2: deploy cRPD topology

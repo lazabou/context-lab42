@@ -44,7 +44,11 @@ containerd.io
 
 sudo apt-mark hold docker-ce docker-ce-cli containerd.io
 
+sudo usermod -aG docker $USER
+newgrp docker
+exit
+
 Load cRPD image: 
-sudo docker load -i junos-routing-crpd-docker-amd64-24.4R2-S3.5.tgz
+docker load -i junos-routing-crpd-docker-amd64-24.4R2-S3.5.tgz
 
 # Step 2: deploy cRPD topology

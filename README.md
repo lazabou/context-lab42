@@ -12,38 +12,34 @@ A collaborative playground for experimenting with:
 ## Topology
 
 ```
-                        AS 65011
-                      +---------+
-                      |   R11   |
-                      |  (CE)   |
-                      +----+----+
-                     /          \
-           10.1.11.0/30        10.2.11.0/30
-                   /              \
-          +-------+----+    +----+-------+
-          |    R1      |    |    R2      |
-          |  PE lo=    |    |  PE lo=    |
-          | 1.1.1.1/32 +----+ 2.2.2.2/32 |
-          |  AS 65000  |    |  AS 65000  |
-          +-------+----+    +----+-------+
-                   \    R1-R2    /
-          10.0.13.0/30       10.0.23.0/30
-                     \        /
-                      \      /
-                  +----+----+
-                  |   R3    |
-                  |  PE lo= |
-                  |3.3.3.3/32|
-                  |  AS 65000|
-                  +----+----+
-                       |
-               10.3.12.0/30
-                       |
-                  +----+----+
-                  |   R12   |
-                  |  (CE)   |
-                  | AS 65012|
-                  +---------+
+                          AS 65011
+                        +---------+
+                        |   R11   | 192.168.100.5
+                        |  (CE)   |
+                        +----+----+
+                       /          \
+                      /            \
+             +-------+----+    +----+-------+
+             |    R1      |    |    R2      |
+  .100.2     |  PE        +----+  PE        |     .100.3
+             | AS 65000   |    | AS 65000   |
+             +-------+----+    +----+-------+
+                      \              /
+                       \            /
+                    +---+----------+---+
+                    |        R3        |
+                    |       PE         |  192.168.100.4
+                    |    AS 65000      |
+                    +--------+---------+
+                             |
+                        +----+----+
+                        |   R12   | 192.168.100.6
+                        |  (CE)   |
+                        | AS 65012|
+                        +---------+
+
+  All routers connected on a single L2 bridge (192.168.100.0/24).
+  Logical topology (IPs, MPLS, VRFs) configured in Junos.
 ```
 
 ### Roles
@@ -60,6 +56,14 @@ A collaborative playground for experimenting with:
 
 Single flat L2 bridge (`lab` network, 192.168.100.0/24).  
 All containers share one Ethernet segment — IP addressing and topology are configured directly in Junos.
+
+| Container | Docker IP (eth0) |
+|-----------|-----------------|
+| r1        | 192.168.100.2   |
+| r2        | 192.168.100.3   |
+| r3        | 192.168.100.4   |
+| r11       | 192.168.100.5   |
+| r12       | 192.168.100.6   |
 
 ---
 

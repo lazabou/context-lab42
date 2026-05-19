@@ -56,30 +56,14 @@ A collaborative playground for experimenting with:
 | R11    | CE (VPN1)  | 11.11.11.11/32 | 65011 |
 | R12    | CE (VPN1)  | 12.12.12.12/32 | 65012 |
 
-### Links
+### Docker networking
 
-| Link   | Subnet          | Side A       | Side B       |
-|--------|-----------------|--------------|--------------|
-| R1-R2  | 10.0.12.0/30   | R1 10.0.12.1 | R2 10.0.12.2 |
-| R1-R3  | 10.0.13.0/30   | R1 10.0.13.1 | R3 10.0.13.2 |
-| R2-R3  | 10.0.23.0/30   | R2 10.0.23.1 | R3 10.0.23.2 |
-| R1-R11 | 10.1.11.0/30   | R1 10.1.11.1 | R11 10.1.11.2 |
-| R2-R11 | 10.2.11.0/30   | R2 10.2.11.1 | R11 10.2.11.2 |
-| R3-R12 | 10.3.12.0/30   | R3 10.3.12.1 | R12 10.3.12.2 |
-
-### Interface mapping (Docker)
-
-| Container | eth0 (mgmt)      | eth1            | eth2            | eth3          |
-|-----------|------------------|-----------------|-----------------|---------------|
-| r1        | 192.168.100.1/24 | 10.0.12.1 → R2  | 10.0.13.1 → R3  | 10.1.11.1 → R11 |
-| r2        | 192.168.100.2/24 | 10.0.12.2 → R1  | 10.0.23.1 → R3  | 10.2.11.1 → R11 |
-| r3        | 192.168.100.3/24 | 10.0.13.2 → R1  | 10.0.23.2 → R2  | 10.3.12.1 → R12 |
-| r11       | 192.168.100.11/24| 10.1.11.2 → R1  | 10.2.11.2 → R2  | —               |
-| r12       | 192.168.100.12/24| 10.3.12.2 → R3  | —               | —               |
+Single flat L2 bridge (`lab` network, 192.168.100.0/24).  
+All containers share one Ethernet segment — IP addressing and topology are configured directly in Junos.
 
 ---
 
-## Protocols
+## Intended protocols (to configure in Junos)
 
 - **OSPF** (area 0) — IGP on PE backbone (R1, R2, R3)
 - **LDP** — MPLS label distribution on PE backbone

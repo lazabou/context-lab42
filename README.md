@@ -307,32 +307,61 @@ cd ~/junos-mcp-server && \
 
 ## Step 10 — Connect Claude Code to the Junos MCP
 
-Create or edit `~/.claude/mcp.json` on your **Mac/PC client**:
+The MCP is configured **at project scope** — it is active only when Claude Code is opened from this repository, and has no effect on other projects.
+
+### How it works
+
+The file [`.mcp.json`](.mcp.json) at the root of this repo declares the Junos MCP server:
 
 ```json
 {
   "mcpServers": {
     "junos-mcp": {
-      "type": "http",
+      "type": "streamable-http",
       "url": "http://<SERVER_IP>:30030/mcp/"
     }
   }
 }
 ```
 
-Replace `<SERVER_IP>` with your Ubuntu server's IP address (e.g. `172.30.193.14`).
+Claude Code detects this file automatically when you open the repo. No global configuration is needed — and the MCP is not exposed to other projects.
 
-**Restart Claude Code** to load the MCP configuration.
+**If you are cloning this repo on a new machine**, update the `url` field with your server IP and open the project in Claude Code. That is all.
 
-### How Claude connects to the Junos MCP
+> **Why project scope instead of global?** A global MCP (`~/.claude/mcp.json`) would expose the Junos tools in every Claude Code session, regardless of context. Project scope keeps the lab tools contained: they are only available when working in this repo, which avoids accidental interactions with production infrastructure from unrelated sessions.
 
-Once `~/.claude/mcp.json` is saved and Claude Code is restarted, the MCP tools are available **immediately and automatically** — you do not need to ask Claude to "connect" or "activate" anything.
+### Interaction rules — CLAUDE.md
 
-**From Claude Code (CLI or IDE extension):** Claude discovers the available MCP tools at startup. As soon as you describe a network task in natural language, Claude decides on its own whether to call a Junos MCP tool to answer or complete the task. No explicit invocation syntax needed — just describe what you want.
+The file [`CLAUDE.md`](CLAUDE.md) at the root of this repo defines strict rules that Claude follows automatically in this project:
 
-**From claude.ai (web chat):** The `~/.claude/mcp.json` file is specific to the Claude Code CLI and IDE extensions. It has **no effect** on the claude.ai web interface, which has its own separate MCP configuration mechanism.
+- **MCP-only device access** — Claude uses exclusively the junos-mcp tools (`execute_junos_command`, `get_junos_config`, `load_and_commit_config`, `junos_config_diff`, `gather_device_facts`, `get_router_list`). It will never use bash, ssh, or docker exec to reach the routers.
+- **Mandatory diff before commit** — before any `load_and_commit_config`, Claude must display the diff with `junos_config_diff` and wait for explicit confirmation.
+- **Lab scope only** — the MCP server covers r1, r2, r3, r11, r12 only. Claude will not use it for other Junos devices.
+- **MCP failure handling** — if the MCP server does not respond, Claude reports it and stops instead of falling back to a different access method.
 
-**How it works under the hood:** each time you send a message, Claude evaluates which tools are relevant. If the task involves Junos, it calls `execute_junos_command`, `load_and_commit_config`, etc. — the MCP server receives the call, opens a NETCONF session to the target router, executes the operation, and returns the result to Claude. The whole round-trip is transparent.
+Claude Code loads `CLAUDE.md` automatically at session start — no setup required.
+
+### Verify the MCP is active
+
+When Claude Code opens this project, run:
+
+```
+List the routers available in the lab
+```
+
+Claude should call `get_router_list` and return r1, r2, r3, r11, r12 — confirming the MCP is connected.
+
+### How Claude uses the MCP tools
+
+Once active, the tools are called automatically — no explicit invocation needed. Just describe what you want in natural language:
+
+```
+Show me the interfaces on R1
+Check BGP sessions on all PE routers
+Configure OSPF area 0 on R1, R2 and R3
+```
+
+**From claude.ai (web chat):** `.mcp.json` is specific to Claude Code (CLI and IDE extensions). It has no effect on the claude.ai web interface.
 
 ### Available MCP tools
 

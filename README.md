@@ -305,30 +305,72 @@ cd ~/junos-mcp-server && \
 
 ---
 
-## Step 10 — Connect Claude Code to the Junos MCP
+## Step 10 — Connect Claude to the Junos MCP
 
-The MCP is configured **at project scope** — it is active only when Claude Code is opened from this repository, and has no effect on other projects.
+There are two Claude clients, each with a different MCP configuration mechanism:
 
-### How it works
+| Client | MCP scope | Config file |
+|--------|-----------|-------------|
+| **Claude Code CLI** (`claude` in terminal) | Project-scoped | `.mcp.json` at repo root |
+| **Claude Mac desktop app** | Global (all sessions) | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 
-The file [`.mcp.json`](.mcp.json) at the root of this repo declares the Junos MCP server:
+Both work equally well for operating this lab — the only difference is scope.
+
+---
+
+### Option A — Claude Code CLI (project-scoped)
+
+The file [`.mcp.json`](.mcp.json) at the root of this repo declares the Junos MCP server. Claude Code detects it automatically when you open a session from this directory:
+
+```bash
+cd context-lab42
+claude
+```
 
 ```json
 {
   "mcpServers": {
     "junos-mcp": {
       "type": "http",
-      "url": "http://<SERVER_IP>:30030/mcp/"
+      "url": "http://localhost:30030/mcp/"
     }
   }
 }
 ```
 
-Claude Code detects this file automatically when you open the repo. No global configuration is needed — and the MCP is not exposed to other projects.
+`junos-mcp` is only active in this project — it is invisible to other Claude Code sessions.
 
-**If you are cloning this repo on a new machine**, update the `url` field with your server IP and open the project in Claude Code. That is all.
+---
 
-> **Why project scope instead of global?** A global MCP (`~/.claude/mcp.json`) would expose the Junos tools in every Claude Code session, regardless of context. Project scope keeps the lab tools contained: they are only available when working in this repo, which avoids accidental interactions with production infrastructure from unrelated sessions.
+### Option B — Claude Mac desktop app (global)
+
+The Mac desktop app does not read `.mcp.json`. MCP servers must be declared globally in:
+
+```
+~/Library/Application Support/Claude/claude_desktop_config.json
+```
+
+Add the `mcpServers` key alongside the existing `preferences`:
+
+```json
+{
+  "mcpServers": {
+    "junos-mcp": {
+      "type": "http",
+      "url": "http://localhost:30030/mcp/"
+    }
+  },
+  "preferences": {
+    ...
+  }
+}
+```
+
+**Restart the Claude app** after saving the file (Cmd+Q then relaunch).
+
+> **Is global scope a problem?** Not really — the MCP only connects to this lab's routers and does nothing in unrelated sessions unless you explicitly ask about Junos. `CLAUDE.md` at the root of this repo also defines strict rules (MCP-only access, mandatory diff before commit, lab scope only) that Claude applies automatically when working in this project.
+
+**If you are setting up on a new machine**, replace `localhost:30030` with your server IP if you are not using the SSH tunnel (see troubleshooting below).
 
 ---
 

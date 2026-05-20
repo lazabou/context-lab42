@@ -33,11 +33,13 @@ This use case configures and validates an MPLS backbone with OSPF, LDP, and an E
 
 ### Interface mapping
 
+> **cRPD naming:** cRPD exposes Linux interface names directly in Junos. Use `eth0`, `eth1`, `eth2` — **not** `et-0/0/0`, `et-0/0/1`, `et-0/0/2`.
+
 | Docker interface | Junos interface | Connected to |
 |-----------------|-----------------|--------------|
-| eth0            | et-0/0/0        | `lab` network (management) — **skip, do not configure routing IPs** |
-| eth1            | et-0/0/1        | PE-PE or PE-CE link (see table below) |
-| eth2            | et-0/0/2        | PE-PE link (PEs only) |
+| eth0            | eth0            | `lab` network (management) — **skip, do not configure routing IPs** |
+| eth1            | eth1            | PE-PE or PE-CE link (see table below) |
+| eth2            | eth2            | PE-PE link (PEs only) |
 
 ### Addressing plan
 
@@ -46,15 +48,14 @@ This use case configures and validates an MPLS backbone with OSPF, LDP, and an E
 | R1 lo0    | lo0.0          | 10.0.0.1/32   | —          | —          | —             |
 | R2 lo0    | lo0.0          | 10.0.0.2/32   | —          | —          | —             |
 | R3 lo0    | lo0.0          | 10.0.0.3/32   | —          | —          | —             |
-| R1 ↔ R2  | R1: et-0/0/1   | 10.1.12.0/30  | 10.1.12.1  | 10.1.12.2  | R2            |
-| R1 ↔ R3  | R1: et-0/0/2   | 10.1.13.0/30  | 10.1.13.1  | 10.1.13.2  | R3            |
-| R2 ↔ R1  | R2: et-0/0/1   | 10.1.12.0/30  | 10.1.12.2  | 10.1.12.1  | R1            |
-| R2 ↔ R3  | R2: et-0/0/2   | 10.1.23.0/30  | 10.1.23.1  | 10.1.23.2  | R3            |
-| R3 ↔ R1  | R3: et-0/0/1   | 10.1.13.0/30  | 10.1.13.2  | 10.1.13.1  | R1            |
-| R3 ↔ R2  | R3: et-0/0/2   | 10.1.23.0/30  | 10.1.23.2  | 10.1.23.1  | R2            |
-| R1 ↔ R11 | R1: et-0/0/1 *(shared with R1↔R2 — **not applicable in this lab**)* | — | — | — | — |
-| R2 ↔ R11 | — | 10.1.211.0/30 | 10.1.211.1 | 10.1.211.2 | R11 |
-| R3 ↔ R12 | — | 10.1.312.0/30 | 10.1.312.1 | 10.1.312.2 | R12 |
+| R1 ↔ R2  | R1: eth1       | 10.1.12.0/30  | 10.1.12.1  | 10.1.12.2  | R2            |
+| R1 ↔ R3  | R1: eth2       | 10.1.13.0/30  | 10.1.13.1  | 10.1.13.2  | R3            |
+| R2 ↔ R1  | R2: eth1       | 10.1.12.0/30  | 10.1.12.2  | 10.1.12.1  | R1            |
+| R2 ↔ R3  | R2: eth2       | 10.1.23.0/30  | 10.1.23.1  | 10.1.23.2  | R3            |
+| R3 ↔ R1  | R3: eth1       | 10.1.13.0/30  | 10.1.13.2  | 10.1.13.1  | R1            |
+| R3 ↔ R2  | R3: eth2       | 10.1.23.0/30  | 10.1.23.2  | 10.1.23.1  | R2            |
+| R2 ↔ R11 | —              | 10.1.211.0/30 | 10.1.211.1 | 10.1.211.2 | R11           |
+| R3 ↔ R12 | —              | 10.1.312.0/30 | 10.1.312.1 | 10.1.312.2 | R12           |
 
 > **Note on CE links:** in this lab, R11 and R12 are on the `lab` management bridge (eth0). A dedicated PE-CE physical link on eth1/et-0/0/1 is only available on routers that are not already using that interface for a PE-PE link. Adjust accordingly if you rewire the topology.
 
@@ -74,22 +75,23 @@ This use case configures and validates an MPLS backbone with OSPF, LDP, and an E
 **Prompt to Claude:**
 ```
 Configure interfaces and loopbacks on R1, R2 and R3 using the following addressing plan.
-Do not configure anything on et-0/0/0 (management interface).
+Do not configure anything on eth0 (management interface).
+Use eth1 and eth2 as the PE-PE interface names (cRPD uses Linux interface names directly in Junos).
 
 R1:
-  lo0.0       10.0.0.1/32
-  et-0/0/1    10.1.12.1/30   (link to R2)
-  et-0/0/2    10.1.13.1/30   (link to R3)
+  lo0.0   10.0.0.1/32
+  eth1    10.1.12.1/30   (link to R2)
+  eth2    10.1.13.1/30   (link to R3)
 
 R2:
-  lo0.0       10.0.0.2/32
-  et-0/0/1    10.1.12.2/30   (link to R1)
-  et-0/0/2    10.1.23.1/30   (link to R3)
+  lo0.0   10.0.0.2/32
+  eth1    10.1.12.2/30   (link to R1)
+  eth2    10.1.23.1/30   (link to R3)
 
 R3:
-  lo0.0       10.0.0.3/32
-  et-0/0/1    10.1.13.2/30   (link to R1)
-  et-0/0/2    10.1.23.2/30   (link to R2)
+  lo0.0   10.0.0.3/32
+  eth1    10.1.13.2/30   (link to R1)
+  eth2    10.1.23.2/30   (link to R2)
 ```
 
 ---
@@ -101,7 +103,7 @@ OSPF provides IGP reachability between PE loopbacks. All PE-PE interfaces and lo
 **Prompt to Claude:**
 ```
 Configure OSPF area 0 on R1, R2 and R3.
-Include et-0/0/1 and et-0/0/2 as active interfaces.
+Include eth1 and eth2 as active interfaces.
 Include lo0.0 as a passive interface.
 ```
 
@@ -120,7 +122,7 @@ LDP distributes MPLS labels over the PE-PE links established by OSPF.
 **Prompt to Claude:**
 ```
 Enable LDP on R1, R2 and R3.
-Activate LDP on et-0/0/1 and et-0/0/2.
+Activate LDP on eth1 and eth2.
 Use the loopback lo0.0 as the LDP router-id.
 ```
 

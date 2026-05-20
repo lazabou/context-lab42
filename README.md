@@ -14,31 +14,31 @@ A collaborative playground for experimenting with:
 ```
                           AS 65011
                         +---------+
-                        |   R11   | 192.168.100.5
+                        |   R11   | 
                         |  (CE)   |
                         +----+----+
                        /          \
                       /            \
              +-------+----+    +----+-------+
              |    R1      |    |    R2      |
-  .100.2     |  PE        +----+  PE        |     .100.3
+             |  PE        +----+  PE        |     
              | lo:10.0.0.1|    | lo:10.0.0.2|
              +-------+----+    +----+-------+
                       \              /
                        \            /
                     +---+----------+---+
                     |        R3        |
-                    |  PE lo:10.0.0.3  |  192.168.100.4
+                    |  PE lo:10.0.0.3  |  
                     |    AS 65000      |
                     +--------+---------+
                              |
                         +----+----+
-                        |   R12   | 192.168.100.6
+                        |   R12   | 
                         |  (CE)   |
                         | AS 65012|
                         +---------+
 
-  All routers connected on a single L2 bridge (192.168.100.0/24).
+  All routers connected on a single L2 bridge.
   Logical topology (IPs, MPLS, VRFs) configured in Junos.
 ```
 

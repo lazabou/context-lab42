@@ -16,13 +16,13 @@ This use case configures and validates an MPLS backbone with OSPF, LDP, and an E
         |  CE  |          |  CE  |
         +--+---+          +---+--+
            |                  |
-        et-0/0/0           et-0/0/0
+        et-0/0/1           et-0/0/1
            |                  |
      +-----+----+        +----+-----+
      |    R1    +--------+    R2    |
-     |    PE    |        |    PE    |
+     |    PE    | et-0/0/1  |    PE    |
      +-----+----+        +----+-----+
-           \                  /
+           \  et-0/0/2  et-0/0/2  /
             \                /
              \              /
            +--+------------+--+
@@ -31,58 +31,84 @@ This use case configures and validates an MPLS backbone with OSPF, LDP, and an E
            +------------------+
 ```
 
+### Interface mapping
+
+| Docker interface | Junos interface | Connected to |
+|-----------------|-----------------|--------------|
+| eth0            | et-0/0/0        | `lab` network (management) — **skip, do not configure routing IPs** |
+| eth1            | et-0/0/1        | PE-PE or PE-CE link (see table below) |
+| eth2            | et-0/0/2        | PE-PE link (PEs only) |
+
 ### Addressing plan
 
-| Link         | Subnet          | R1 side       | R2/R3 side    |
-|--------------|-----------------|---------------|---------------|
-| R1 loopback  | 10.0.0.1/32     | —             | —             |
-| R2 loopback  | 10.0.0.2/32     | —             | —             |
-| R3 loopback  | 10.0.0.3/32     | —             | —             |
-| R1 ↔ R2     | 10.1.12.0/30    | 10.1.12.1     | 10.1.12.2     |
-| R1 ↔ R3     | 10.1.13.0/30    | 10.1.13.1     | 10.1.13.2     |
-| R2 ↔ R3     | 10.1.23.0/30    | 10.1.23.1     | 10.1.23.2     |
-| R1 ↔ R11    | 10.1.111.0/30   | 10.1.111.1    | 10.1.111.2    |
-| R2 ↔ R11    | 10.1.211.0/30   | 10.1.211.1    | 10.1.211.2    |
-| R3 ↔ R12    | 10.1.312.0/30   | 10.1.312.1    | 10.1.312.2    |
+| Link      | Junos interface | Subnet        | Local IP   | Remote IP  | Remote router |
+|-----------|----------------|---------------|------------|------------|---------------|
+| R1 lo0    | lo0.0          | 10.0.0.1/32   | —          | —          | —             |
+| R2 lo0    | lo0.0          | 10.0.0.2/32   | —          | —          | —             |
+| R3 lo0    | lo0.0          | 10.0.0.3/32   | —          | —          | —             |
+| R1 ↔ R2  | R1: et-0/0/1   | 10.1.12.0/30  | 10.1.12.1  | 10.1.12.2  | R2            |
+| R1 ↔ R3  | R1: et-0/0/2   | 10.1.13.0/30  | 10.1.13.1  | 10.1.13.2  | R3            |
+| R2 ↔ R1  | R2: et-0/0/1   | 10.1.12.0/30  | 10.1.12.2  | 10.1.12.1  | R1            |
+| R2 ↔ R3  | R2: et-0/0/2   | 10.1.23.0/30  | 10.1.23.1  | 10.1.23.2  | R3            |
+| R3 ↔ R1  | R3: et-0/0/1   | 10.1.13.0/30  | 10.1.13.2  | 10.1.13.1  | R1            |
+| R3 ↔ R2  | R3: et-0/0/2   | 10.1.23.0/30  | 10.1.23.2  | 10.1.23.1  | R2            |
+| R1 ↔ R11 | R1: et-0/0/1 *(shared with R1↔R2 — **not applicable in this lab**)* | — | — | — | — |
+| R2 ↔ R11 | — | 10.1.211.0/30 | 10.1.211.1 | 10.1.211.2 | R11 |
+| R3 ↔ R12 | — | 10.1.312.0/30 | 10.1.312.1 | 10.1.312.2 | R12 |
+
+> **Note on CE links:** in this lab, R11 and R12 are on the `lab` management bridge (eth0). A dedicated PE-CE physical link on eth1/et-0/0/1 is only available on routers that are not already using that interface for a PE-PE link. Adjust accordingly if you rewire the topology.
 
 ### Protocols
 
-| Layer       | Protocol | Role                                      |
-|-------------|----------|-------------------------------------------|
-| IGP         | OSPF area 0 | Reachability between PE loopbacks      |
-| MPLS        | LDP      | Label distribution on PE-PE links         |
-| Overlay     | iBGP EVPN | Full mesh between PEs (address-family evpn) |
-| PE-CE       | EVPN     | R11 and R12 as EVPN CE (bridged or routed) |
+| Layer   | Protocol     | Role                                        |
+|---------|--------------|---------------------------------------------|
+| IGP     | OSPF area 0  | Reachability between PE loopbacks           |
+| MPLS    | LDP          | Label distribution on PE-PE links           |
+| Overlay | iBGP EVPN    | Full mesh between PEs (address-family evpn) |
+| PE-CE   | EVPN         | R11 and R12 as EVPN CE                      |
 
 ---
 
 ## Step 1 — Configure interfaces and loopbacks
 
-Claude applies interface IPs and loopbacks on each PE via `load_and_commit_config`.
-
 **Prompt to Claude:**
 ```
-Configure interfaces and loopbacks on R1, R2 and R3 according to the EVPN-MPLS addressing plan.
-Use the interface mapping: et-0/0/0=eth0 (mgmt, skip), et-0/0/1=eth1, et-0/0/2=eth2.
-PE-PE links are on eth1 and eth2; loopbacks on lo0.
+Configure interfaces and loopbacks on R1, R2 and R3 using the following addressing plan.
+Do not configure anything on et-0/0/0 (management interface).
+
+R1:
+  lo0.0       10.0.0.1/32
+  et-0/0/1    10.1.12.1/30   (link to R2)
+  et-0/0/2    10.1.13.1/30   (link to R3)
+
+R2:
+  lo0.0       10.0.0.2/32
+  et-0/0/1    10.1.12.2/30   (link to R1)
+  et-0/0/2    10.1.23.1/30   (link to R3)
+
+R3:
+  lo0.0       10.0.0.3/32
+  et-0/0/1    10.1.13.2/30   (link to R1)
+  et-0/0/2    10.1.23.2/30   (link to R2)
 ```
 
 ---
 
 ## Step 2 — Configure OSPF area 0
 
-OSPF provides IGP reachability between PE loopbacks. All PE-PE links and loopbacks are included in area 0.
+OSPF provides IGP reachability between PE loopbacks. All PE-PE interfaces and loopbacks are included in area 0.
 
 **Prompt to Claude:**
 ```
 Configure OSPF area 0 on R1, R2 and R3.
-Include all PE-PE interfaces and the loopback (lo0.0) as passive.
+Include et-0/0/1 and et-0/0/2 as active interfaces.
+Include lo0.0 as a passive interface.
 ```
 
-Verify:
+**Verify:**
 ```
-Ask Claude: show OSPF neighbors on R1, R2 and R3
-# Expected: full adjacencies between all PE pairs
+Show OSPF neighbors on R1, R2 and R3.
+Expected: each PE has 2 OSPF adjacencies (full mesh).
 ```
 
 ---
@@ -93,13 +119,15 @@ LDP distributes MPLS labels over the PE-PE links established by OSPF.
 
 **Prompt to Claude:**
 ```
-Enable LDP on R1, R2 and R3 on all PE-PE interfaces.
+Enable LDP on R1, R2 and R3.
+Activate LDP on et-0/0/1 and et-0/0/2.
+Use the loopback lo0.0 as the LDP router-id.
 ```
 
-Verify:
+**Verify:**
 ```
-Ask Claude: show LDP neighbors on all PEs
-# Expected: LDP sessions up between all PE pairs
+Show LDP neighbors on R1, R2 and R3.
+Expected: each PE has 2 LDP sessions up (full mesh).
 ```
 
 ---
@@ -110,14 +138,19 @@ An iBGP full mesh with address-family `evpn` is established between PE loopbacks
 
 **Prompt to Claude:**
 ```
-Configure iBGP between R1, R2 and R3 for the EVPN address family.
-Use loopback addresses as BGP peers. Full mesh (no route reflector).
+Configure iBGP EVPN on R1, R2 and R3.
+Use the following loopback addresses as BGP peer IPs:
+  R1: 10.0.0.1
+  R2: 10.0.0.2
+  R3: 10.0.0.3
+Full mesh (no route reflector). Local AS 65000 on all PEs.
+Enable address-family evpn on all sessions.
 ```
 
-Verify:
+**Verify:**
 ```
-Ask Claude: show BGP summary on all PEs
-# Expected: 2 established sessions per PE
+Show BGP summary on R1, R2 and R3.
+Expected: 2 established iBGP sessions per PE.
 ```
 
 ---
@@ -129,6 +162,7 @@ Define the EVPN instance and bind the CE-facing interfaces.
 **Prompt to Claude:**
 ```
 Configure an EVPN instance (EVI 100) on R1, R2 and R3.
+Use route-distinguisher <loopback>:100 and route-target 65000:100 (import and export).
 Bind the CE-facing interface on each PE to the EVI.
 R1 and R2 connect to R11; R3 connects to R12.
 ```
@@ -139,20 +173,22 @@ R1 and R2 connect to R11; R3 connects to R12.
 
 **Prompt to Claude:**
 ```
-Verify the EVPN-MPLS deployment end-to-end:
-- Check EVPN routes in the BGP table on all PEs
-- Check the MPLS forwarding table
-- Verify MAC/IP learning between R11 and R12
+Verify the EVPN-MPLS deployment end-to-end on R1, R2 and R3:
+- Show EVPN instance summary
+- Show BGP EVPN routes (show bgp evpn)
+- Show MPLS forwarding table (show mpls forwarding)
+- Show MAC table for EVI 100
 ```
 
 ---
 
 ## Rollback
 
-To reset all routers to factory default (hostname + root password only) and start over:
+To reset all routers to base configuration (hostname + root password only) and start fresh:
 
 **Prompt to Claude:**
 ```
-Reset R1, R2, R3, R11 and R12 to a clean base configuration:
-keep only hostname and root-authentication, remove everything else.
+Reset R1, R2, R3, R11 and R12 to a clean base configuration.
+Keep only system host-name and root-authentication. Remove everything else.
+Show the diff before committing and wait for confirmation.
 ```

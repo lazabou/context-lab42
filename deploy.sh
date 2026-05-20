@@ -34,6 +34,16 @@ for name in r1 r2 r3 r11 r12; do
 done
 
 echo ""
+echo "=== [4/4] Starting containers ==="
+# IMPORTANT: all docker network connect calls happen AFTER start.
+# Docker assigns eth names in the ORDER of connect calls on a running container.
+# Connecting before start causes alphabetical ordering (net-r1-r11 < net-r1-r2),
+# which puts the CE network on eth1 instead of the PE-PE network.
+docker start r1 r2 r3 r11 r12
+
+sleep 5
+
+echo ""
 echo "=== Wiring PE-PE interfaces (eth1, eth2) ==="
 # R1: eth1=net-r1-r2  eth2=net-r1-r3
 docker network connect net-r1-r2 r1
@@ -57,11 +67,7 @@ docker network connect net-r2-r11 r11
 docker network connect net-r3-r12 r3
 docker network connect net-r3-r12 r12
 
-echo ""
-echo "=== [4/4] Starting containers ==="
-docker start r1 r2 r3 r11 r12
-
-sleep 5
+sleep 2
 
 echo ""
 echo "=== Flushing Docker-assigned IPs from PE-PE and PE-CE interfaces ==="

@@ -11,34 +11,38 @@ This use case configures and validates an MPLS backbone with OSPF, LDP, and an E
 ## Scenario
 
 ```
-        +----------+
-        |   R11    |
-        |   CE     |
-        +--+----+--+
-          eth1  eth2
-           |      |
-          eth3  eth3
-           |      |
-    +------+--+  +--+------+
-    |   R1    +--+   R2    |
-    |   PE    |eth1  eth1  |   PE    |
-    +----+----+  +----+----+
-        eth2          eth2
-          \              /
-           \            /
-         +--+----------+--+
-         |       R3       |
-         |       PE       |
-         +-------+--------+
-                 |eth3
-                 |
-            +----+----+
-            |   R12   |
-            |   CE    |
-            +---------+
+              +----------+
+              |   R11    |
+              |   CE     |
+              +--+----+--+
+                eth1  eth2
+                 |      |
+                eth3  eth3
+                 |      |
+    +------------+--+  +--+------------+
+    |      R1       |  |      R2       |
+    |      PE       |  |      PE       |
+    +--+----------+-+  +-+----------+--+
+      eth2        eth1    eth1       eth2
+                    \      /
+                     \    /
+                   (10.1.12.0/30)
+        \                                /
+       eth2                            eth2
+          \                            /
+        +--+----------------------------+--+
+        |               R3                 |
+        |               PE                 |
+        +----------------+-----------------+
+                        eth3
+                         |
+                    +----+----+
+                    |   R12   |
+                    |   CE    |
+                    +---------+
 ```
 
-> R11 est raccordé à R1 **et** R2 via deux réseaux L3 distincts (pas d'agrégat LACP) : 192.168.111.0/24 vers R1, 192.168.112.0/24 vers R2.
+> R11 is connected to R1 **and** R2 via two distinct L3 networks (no LACP aggregation): 192.168.111.0/24 toward R1, 192.168.112.0/24 toward R2.
 
 ### Interface mapping
 

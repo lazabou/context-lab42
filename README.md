@@ -70,7 +70,7 @@ R1, R2, R3 form a full-mesh PE triangle. R11 is dual-homed on R1 and R2. R12 is 
 | r11       | 192.168.100.5 | —              | —              |
 | r12       | 192.168.100.6 | —              | —              |
 
-eth0/eth1/eth2 appear inside Junos as `et-0/0/0`, `et-0/0/1`, `et-0/0/2` depending on the cRPD version. All routing IPs are configured in Junos (never on the Docker side).
+All routing IPs are configured in Junos (never on the Docker side). See the [cRPD interface behaviour](#crpd-interface-behaviour) section for important differences with classic Junos.
 
 ---
 
@@ -495,6 +495,68 @@ Configure OSPF area 0 on R1, R2 and R3
 | `junos_config_diff`     | Compare candidate vs running config      |
 | `gather_device_facts`   | System information for a router          |
 | `get_router_list`       | List configured routers                  |
+
+---
+
+## cRPD Interface Behaviour
+
+cRPD is a **routing protocol daemon only** — it has no Packet Forwarding Engine (PFE). This makes it behave differently from classic Junos in several important ways.
+
+### Interface naming
+
+cRPD exposes Linux interface names directly in Junos. The interfaces are `eth0`, `eth1`, `eth2` — not `et-0/0/0`, `et-0/0/1`, `et-0/0/2`.
+
+| Docker interface | Junos interface | Note |
+|-----------------|-----------------|------|
+| eth0 | eth0 | Management — do not configure routing IPs |
+| eth1 | eth1 | PE-PE or PE-CE link |
+| eth2 | eth2 | PE-PE link (PEs only) |
+
+### No unit suffix in protocol stanzas
+
+This is the most important cRPD-specific rule: **do not use the `.0` unit suffix** when referencing Linux interfaces inside protocol stanzas (`protocols ospf`, `protocols ldp`, `protocols bgp`, etc.).
+
+cRPD tracks Linux interfaces internally without a unit number. When you configure `interface eth1.0` in OSPF, the daemon looks for an IFL named `eth1.0` — which does not exist. The interface is silently ignored and OSPF never activates on it.
+
+| Context | Classic Junos | cRPD |
+|---------|--------------|------|
+| `interfaces` stanza | `set interfaces eth1 unit 0 family inet address ...` | same |
+| `protocols ospf` | `interface eth1.0` | **`interface eth1`** |
+| `protocols ldp` | `interface eth1.0` | **`interface eth1`** |
+| Loopback (exception) | `interface lo0.0` | same — `lo0.0` works as usual |
+
+Example correct OSPF config for cRPD:
+
+```
+set protocols ospf area 0.0.0.0 interface lo0.0 passive
+set protocols ospf area 0.0.0.0 interface eth1 interface-type p2p
+set protocols ospf area 0.0.0.0 interface eth2 interface-type p2p
+```
+
+> The `interface-type p2p` is also required. cRPD does not auto-negotiate the OSPF network type on Linux veth interfaces.
+
+### `show interfaces` and `ping`
+
+cRPD has no PFE, so several classic Junos commands either return empty output or are unavailable:
+
+| Command | Classic Junos | cRPD |
+|---------|--------------|------|
+| `ping 10.1.12.2` | ✅ | ❌ no PFE — command unavailable |
+| `show interfaces eth1 detail` | ✅ | ❌ "not valid on crpd" |
+| `show interfaces terse` | ✅ | ✅ works |
+| `show ospf neighbor` | ✅ | ✅ works |
+| `show route` | ✅ | ✅ works |
+
+**How to ping from a cRPD container:**
+
+Since there is no Junos PFE, ping must be run from the **Linux shell** of the container on the Ubuntu server:
+
+```bash
+docker exec r1 ping -c 3 10.1.12.2   # R1 → R2 via eth1
+docker exec r1 ping -c 3 10.0.0.2    # R1 → R2 loopback (requires OSPF route)
+```
+
+IP configuration set in Junos is automatically pushed to the Linux kernel via netlink — so the Linux shell has the correct IPs and routes.
 
 ---
 

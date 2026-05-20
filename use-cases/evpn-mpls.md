@@ -100,10 +100,12 @@ R3:
 
 OSPF provides IGP reachability between PE loopbacks. All PE-PE interfaces and loopbacks are included in area 0.
 
+> **cRPD interface naming in protocol stanzas:** unlike classic Junos where logical interfaces are referenced with their unit suffix (`eth1.0`), cRPD tracks Linux interfaces internally without the unit suffix. Use `eth1` and `eth2` (not `eth1.0` / `eth2.0`) everywhere in `protocols ospf`, `protocols ldp`, etc. The loopback is an exception: use `lo0.0` as usual.
+
 **Prompt to Claude:**
 ```
 Configure OSPF area 0 on R1, R2 and R3.
-Include eth1 and eth2 as active interfaces.
+Include eth1 and eth2 as active interfaces (interface-type p2p, no unit suffix — cRPD requirement).
 Include lo0.0 as a passive interface.
 ```
 
@@ -119,11 +121,16 @@ Expected: each PE has 2 OSPF adjacencies (full mesh).
 
 LDP distributes MPLS labels over the PE-PE links established by OSPF.
 
+> **cRPD requirements:**
+> - Enable `family mpls` under each PE-PE interface unit (`set interfaces eth1 unit 0 family mpls`) — required for MPLS label forwarding.
+> - Reference interfaces **without unit suffix** in `protocols ldp` (same rule as OSPF): use `eth1`, `eth2`, not `eth1.0`, `eth2.0`.
+
 **Prompt to Claude:**
 ```
 Enable LDP on R1, R2 and R3.
-Activate LDP on eth1 and eth2.
-Use the loopback lo0.0 as the LDP router-id.
+First enable family mpls on eth1 and eth2 (set interfaces eth1 unit 0 family mpls, same for eth2).
+Activate LDP on eth1 and eth2 (no unit suffix — cRPD requirement).
+Also activate LDP on lo0.0 and use it as the LDP router-id.
 ```
 
 **Verify:**

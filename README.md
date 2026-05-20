@@ -317,7 +317,7 @@ The file [`.mcp.json`](.mcp.json) at the root of this repo declares the Junos MC
 {
   "mcpServers": {
     "junos-mcp": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "http://<SERVER_IP>:30030/mcp/"
     }
   }
@@ -329,6 +329,128 @@ Claude Code detects this file automatically when you open the repo. No global co
 **If you are cloning this repo on a new machine**, update the `url` field with your server IP and open the project in Claude Code. That is all.
 
 > **Why project scope instead of global?** A global MCP (`~/.claude/mcp.json`) would expose the Junos tools in every Claude Code session, regardless of context. Project scope keeps the lab tools contained: they are only available when working in this repo, which avoids accidental interactions with production infrastructure from unrelated sessions.
+
+---
+
+### Troubleshooting: MCP unreachable from a corporate network
+
+**Symptom:** TCP connectivity to port 30030 succeeds (`nc -zv <SERVER_IP> 30030` shows open), but Claude Code cannot connect to the MCP and the tools never appear. Direct `curl` to the MCP endpoint hangs with 0 bytes received.
+
+**Root cause:** corporate transparent proxies intercept outbound HTTP connections on any port. They accept the TCP handshake and forward the HTTP POST, but silently drop or buffer streaming responses (Server-Sent Events / SSE), which is the format the MCP server uses to reply. Changing the port does not help — the proxy intercepts all HTTP traffic regardless of port.
+
+**Solution: SSH tunnel**
+
+Route MCP traffic through an encrypted SSH tunnel. The proxy cannot inspect SSH, so the responses flow through without interference.
+
+**Step 1 — Update `.mcp.json` to point at localhost:**
+
+```json
+{
+  "mcpServers": {
+    "junos-mcp": {
+      "type": "http",
+      "url": "http://localhost:30030/mcp/"
+    }
+  }
+}
+```
+
+**Step 2 — Make the MCP server a persistent systemd service on the Ubuntu server:**
+
+```bash
+sudo tee /etc/systemd/system/jmcp.service > /dev/null << 'EOF'
+[Unit]
+Description=Junos MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=<your_user>
+WorkingDirectory=/home/<your_user>/junos-mcp-server
+ExecStart=/usr/bin/python3 jmcp.py -f devices.json -t streamable-http -H 0.0.0.0 -p 30030
+Restart=always
+RestartSec=5
+Environment=PATH=/home/<your_user>/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable jmcp
+sudo systemctl start jmcp
+```
+
+Verify: `sudo systemctl is-active jmcp` should return `active`.
+
+**Step 3 — Create a persistent SSH tunnel on your Mac (auto-start at login):**
+
+Create `~/Library/LaunchAgents/com.lab42.ssh-tunnel-jmcp.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lab42.ssh-tunnel-jmcp</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/ssh</string>
+        <string>-N</string>
+        <string>-o</string>
+        <string>StrictHostKeyChecking=no</string>
+        <string>-o</string>
+        <string>ServerAliveInterval=30</string>
+        <string>-o</string>
+        <string>ServerAliveCountMax=3</string>
+        <string>-L</string>
+        <string>30030:localhost:30030</string>
+        <string><your_user>@<SERVER_IP></string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/jmcp-tunnel.log</string>
+</dict>
+</plist>
+```
+
+> **SSH key authentication recommended.** The LaunchAgent above uses key-based SSH (no password prompt). Make sure your public key is in `~/.ssh/authorized_keys` on the server. If you need password auth, install `sshpass` via Homebrew and add it as the first argument.
+
+Load the agent (no reboot needed):
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.lab42.ssh-tunnel-jmcp.plist
+```
+
+**Step 4 — Verify the full chain:**
+
+```bash
+# Tunnel is active
+launchctl list | grep lab42
+
+# MCP responds via tunnel
+curl -s --max-time 5 -X POST http://localhost:30030/mcp/ \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}'
+# Expected: event: message / data: {"jsonrpc":"2.0","id":1,"result":{"serverInfo":...}}
+```
+
+Once both checks pass, restart Claude Code from the project directory — `junos-mcp` will appear in `/mcp` and the tools will be available.
+
+**To stop the tunnel:**
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.lab42.ssh-tunnel-jmcp.plist
+```
 
 ### Interaction rules — CLAUDE.md
 

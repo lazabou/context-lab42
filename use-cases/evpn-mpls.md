@@ -181,21 +181,34 @@ This step configures an L3VPN-style EVPN service using **route type 5 (IP Prefix
 
 R11 is **multi-homed in all-active mode** to R1 and R2 via LACP with a shared ESI. R12 is single-homed to R3.
 
+> **Why an EVPN L2 instance is needed alongside the type-5 VRF:**  
+> ESI multi-homing (type 1 and type 4 routes) is signalled via the EVPN control plane, not via the VRF. R1 and R2 must share a common EVPN instance (`EVI-ESI`, instance-type `evpn`) so they can exchange:
+> - **Type 1** — Ethernet Auto-Discovery routes (per-ESI and per-EVI) used to advertise reachability and fast convergence
+> - **Type 4** — Ethernet Segment routes used for Designated Forwarder (DF) election between R1 and R2
+>
+> Without this L2 EVPN instance, the ESI is configured on the interface but the PE nodes cannot elect a DF, and the all-active multi-homing loop prevention (split-horizon) does not operate correctly.
+
 **Prompt to Claude:**
 ```
-Configure EVPN type-5 VRF on R1, R2 and R3.
+Configure EVPN type-5 VRF with ESI multi-homing on R1, R2 and R3.
 
-=== VRF (all PEs) ===
+=== EVPN L2 instance for ESI signalling (R1 and R2 only) ===
+Routing instance name: EVI-ESI, instance-type evpn.
+Route-distinguisher: <loopback>:11 (10.0.0.1:11 on R1, 10.0.0.2:11 on R2).
+VRF target: target:65000:11 (import and export).
+This instance carries type-1 and type-4 routes for ESI 00:00:00:00:00:00:00:00:00:11.
+Bind eth3 to EVI-ESI on R1 and R2.
+
+=== ESI on R1 eth3 and R2 eth3 ===
+  esi 00:00:00:00:00:00:00:00:00:11
+  all-active mode
+  LACP system-id 00:00:00:00:00:11
+
+=== T5-VRF — IP prefix VRF (all PEs) ===
 Routing instance name: T5-VRF, instance-type vrf.
 Route-distinguisher: <loopback>:100 (10.0.0.1:100 / 10.0.0.2:100 / 10.0.0.3:100).
 VRF target: target:65000:100 (import and export).
 EVPN: ip-prefix-routes, MPLS encapsulation.
-
-=== R11 — multi-homed all-active to R1 and R2 ===
-ESI on R1 eth3 and R2 eth3:
-  esi 00:00:00:00:00:00:00:00:00:11
-  all-active mode
-  LACP system-id 00:00:00:00:00:11
 
 R1 eth3: family inet address 192.168.11.1/24 — add to T5-VRF
 R2 eth3: family inet address 192.168.11.2/24 — add to T5-VRF

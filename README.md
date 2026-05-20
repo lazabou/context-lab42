@@ -1,12 +1,12 @@
 # context-lab42
 
-Lab réseau MPLS L3VPN basé sur des containers cRPD (Juniper) pilotés par Claude via le MCP Junos officiel.
+MPLS L3VPN network lab based on cRPD (Juniper) containers, operated by Claude via the official Junos MCP server.
 
 > Friends don't let friends edit the CLI.
 
 ---
 
-## Topologie logique
+## Logical Topology
 
 ```
                           AS 65011
@@ -37,9 +37,9 @@ Lab réseau MPLS L3VPN basé sur des containers cRPD (Juniper) pilotés par Clau
                         +---------+
 ```
 
-### Rôles
+### Roles
 
-| Router | Rôle      | Loopback      | AS    |
+| Router | Role      | Loopback      | AS    |
 |--------|-----------|---------------|-------|
 | R1     | PE        | 10.0.0.1/32   | 65000 |
 | R2     | PE        | 10.0.0.2/32   | 65000 |
@@ -47,28 +47,28 @@ Lab réseau MPLS L3VPN basé sur des containers cRPD (Juniper) pilotés par Clau
 | R11    | CE (VPN1) | 10.0.0.11/32  | 65011 |
 | R12    | CE (VPN1) | 10.0.0.12/32  | 65012 |
 
-### Protocoles cibles (à configurer dans Junos)
+### Target protocols (to be configured in Junos)
 
-- **OSPF** area 0 — IGP backbone PE
-- **LDP** — distribution des labels MPLS
-- **iBGP** vpnv4 — full mesh entre PE (AS 65000)
+- **OSPF** area 0 — PE backbone IGP
+- **LDP** — MPLS label distribution
+- **iBGP** vpnv4 — full mesh between PEs (AS 65000)
 - **eBGP** — PE↔CE (R11: AS 65011, R12: AS 65012)
-- **VRF VPN1** — L3VPN reliant R11 et R12, RT 65000:1
+- **VRF VPN1** — L3VPN connecting R11 and R12, RT 65000:1
 
 ---
 
-## Infrastructure Docker
+## Docker Infrastructure
 
-### Réseaux
+### Networks
 
-| Réseau     | Type   | Usage                                      |
-|------------|--------|--------------------------------------------|
-| `lab`      | bridge | Segment L2 partagé (mgmt + CE) 192.168.100.0/24 |
-| `net-r1-r2`| bridge | Lien dédié R1↔R2 (L2 pur, IPs dans Junos) |
-| `net-r1-r3`| bridge | Lien dédié R1↔R3 (L2 pur, IPs dans Junos) |
-| `net-r2-r3`| bridge | Lien dédié R2↔R3 (L2 pur, IPs dans Junos) |
+| Network    | Type   | Purpose                                              |
+|------------|--------|------------------------------------------------------|
+| `lab`      | bridge | Shared L2 segment (mgmt + CE access) 192.168.100.0/24 |
+| `net-r1-r2`| bridge | Dedicated R1↔R2 link (pure L2, IPs configured in Junos) |
+| `net-r1-r3`| bridge | Dedicated R1↔R3 link (pure L2, IPs configured in Junos) |
+| `net-r2-r3`| bridge | Dedicated R2↔R3 link (pure L2, IPs configured in Junos) |
 
-### Interfaces par container
+### Interfaces per container
 
 | Container | eth0 (lab)       | eth1           | eth2           |
 |-----------|------------------|----------------|----------------|
@@ -78,20 +78,22 @@ Lab réseau MPLS L3VPN basé sur des containers cRPD (Juniper) pilotés par Clau
 | r11       | 192.168.100.5    | —              | —              |
 | r12       | 192.168.100.6    | —              | —              |
 
-Toutes les IPs de routage sont configurées dans Junos (eth0/eth1/eth2 vus comme `et-0/0/0`, `et-0/0/1`, `et-0/0/2` selon la version cRPD).
+All routing IPs are configured inside Junos. eth0/eth1/eth2 appear as `et-0/0/0`, `et-0/0/1`, `et-0/0/2` depending on the cRPD version.
 
 ---
 
-## Prérequis
+## Prerequisites
 
-- Serveur Ubuntu 22.04 LTS
-- Client Claude Code (Mac/Windows/Linux)
-- Image cRPD : `junos-routing-crpd-docker-amd64-24.4R2-S3.5.tgz`
+- Ubuntu 22.04 LTS server
+- Claude Code client (Mac/Windows/Linux)
+- cRPD image: `junos-routing-crpd-docker-amd64-24.4R2-S3.5.tgz`
 - Python 3.10+
 
 ---
 
-## Étape 1 — Installer Docker sur Ubuntu
+## Step 1 — Install Docker on Ubuntu
+
+Run on the **Ubuntu server**:
 
 ```bash
 sudo apt remove -y docker-ce docker-ce-cli containerd.io \
@@ -121,9 +123,9 @@ newgrp docker
 
 ---
 
-## Étape 2 — Charger l'image cRPD
+## Step 2 — Load the cRPD image
 
-Copier l'image sur le serveur puis :
+Copy the image to the server, then run:
 
 ```bash
 docker load -i junos-routing-crpd-docker-amd64-24.4R2-S3.5.tgz
@@ -132,27 +134,31 @@ docker images | grep crpd
 
 ---
 
-## Étape 3 — Activer les modules MPLS du kernel
+## Step 3 — Enable MPLS kernel modules
+
+Run on the **Ubuntu server**:
 
 ```bash
 sudo modprobe mpls_router
 sudo modprobe mpls_iptunnel
 
-# Persistance au reboot
+# Persist across reboots
 echo "mpls_router"   | sudo tee -a /etc/modules
 echo "mpls_iptunnel" | sudo tee -a /etc/modules
 ```
 
-Vérification :
+Verify:
 
 ```bash
 lsmod | grep mpls
-# mpls_router, mpls_iptunnel, mpls_gso doivent apparaître
+# mpls_router, mpls_iptunnel, mpls_gso should appear
 ```
 
 ---
 
-## Étape 4 — Déployer la topologie cRPD
+## Step 4 — Deploy the cRPD topology
+
+Run on the **Ubuntu server**:
 
 ```bash
 git clone https://github.com/lazabou/context-lab42.git
@@ -161,19 +167,19 @@ chmod +x deploy.sh destroy.sh
 ./deploy.sh
 ```
 
-Le script crée automatiquement :
-- 4 réseaux Docker (`lab`, `net-r1-r2`, `net-r1-r3`, `net-r2-r3`)
-- 5 containers cRPD (`r1`, `r2`, `r3`, `r11`, `r12`)
-- Le câblage des interfaces PE-PE (eth1/eth2 sur R1, R2, R3)
+The script automatically creates:
+- 4 Docker networks (`lab`, `net-r1-r2`, `net-r1-r3`, `net-r2-r3`)
+- 5 cRPD containers (`r1`, `r2`, `r3`, `r11`, `r12`)
+- PE-PE interface wiring (eth1/eth2 on R1, R2, R3)
 
-Vérification :
+Verify:
 
 ```bash
 docker ps --format "table {{.Names}}\t{{.Status}}"
-# r1, r2, r3, r11, r12 doivent être "Up"
+# r1, r2, r3, r11, r12 should all show "Up"
 ```
 
-Pour tout supprimer :
+To tear everything down:
 
 ```bash
 ./destroy.sh
@@ -181,7 +187,9 @@ Pour tout supprimer :
 
 ---
 
-## Étape 5 — Accéder aux routeurs
+## Step 5 — Access the routers
+
+Run on the **Ubuntu server**:
 
 ```bash
 docker exec -it r1  cli
@@ -193,9 +201,11 @@ docker exec -it r12 cli
 
 ---
 
-## Étape 6 — Activer SSH et NETCONF sur les cRPD
+## Step 6 — Enable SSH and NETCONF on the cRPD containers
 
-À faire sur **chaque routeur** (nécessaire pour le MCP Junos) :
+SSH and NETCONF must be enabled on each router — this is what allows the Junos MCP server to connect to them later.
+
+These commands are run **on the Ubuntu server** (not inside the router CLI). Each command pipes Junos CLI instructions directly into the container via `docker exec`:
 
 ```bash
 for r in r1 r2 r3 r11 r12; do
@@ -204,37 +214,46 @@ for r in r1 r2 r3 r11 r12; do
 done
 ```
 
-Vérification sur R1 :
+What this does for each router:
+- `configure` — enters Junos configuration mode
+- `set system services ssh root-login allow` — allows SSH as root
+- `set system services netconf ssh` — enables NETCONF over SSH (port 830)
+- `commit` — applies the configuration
+- `exit` — returns to operational mode
+
+Verify on R1:
 
 ```bash
 docker exec r1 cli -c 'show configuration system services'
-# Doit afficher : netconf { ssh; } ssh { root-login allow; }
+# Expected output: netconf { ssh; } ssh { root-login allow; }
 ```
 
 ---
 
-## Étape 7 — Installer le MCP Junos (Juniper/junos-mcp-server)
+## Step 7 — Install the Junos MCP server (Juniper/junos-mcp-server)
 
-Sur le serveur Ubuntu :
+Run on the **Ubuntu server**:
 
 ```bash
-# Dépendances
+# Dependencies
 sudo apt install -y python3-pip git
 
-# Cloner le repo officiel Juniper
+# Clone the official Juniper repo
 git clone https://github.com/Juniper/junos-mcp-server.git ~/junos-mcp-server
 cd ~/junos-mcp-server
 
-# Corriger la compatibilité pyparsing (requis sur Ubuntu 22.04)
+# Fix pyparsing compatibility (required on Ubuntu 22.04)
 pip3 install -r requirements.txt
 pip3 install 'pyparsing>=3.0.0'
 ```
 
+> **Note on pyparsing**: Ubuntu 22.04 ships with pyparsing 2.4.7, but `junos-eznc` (the underlying Junos Python library) requires version 3.0+. The second `pip3 install` command upgrades it.
+
 ---
 
-## Étape 8 — Configurer les devices
+## Step 8 — Configure the devices file
 
-Créer `~/junos-mcp-server/devices.json` :
+Create `~/junos-mcp-server/devices.json` on the **Ubuntu server**:
 
 ```json
 {
@@ -251,27 +270,40 @@ Créer `~/junos-mcp-server/devices.json` :
 }
 ```
 
-> **Sécurité** : en production, utiliser des clés SSH plutôt que des mots de passe.
+**Where do these IPs come from?**
+
+The `lab` Docker bridge network was created with subnet `192.168.100.0/24` (see `deploy.sh`). Docker assigns IPs sequentially to containers as they join the network:
+- `.1` is reserved for the Docker gateway
+- `r1` → `.2`, `r2` → `.3`, `r3` → `.4`, `r11` → `.5`, `r12` → `.6`
+
+You can confirm the actual IPs at any time:
+
+```bash
+docker inspect -f '{{.Name}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+  r1 r2 r3 r11 r12
+```
+
+> **Security**: in production, use SSH keys instead of passwords.
 
 ---
 
-## Étape 9 — Démarrer le MCP server
+## Step 9 — Start the MCP server
 
-Sur le serveur Ubuntu (en arrière-plan) :
+Run on the **Ubuntu server** (runs in the background):
 
 ```bash
 cd ~/junos-mcp-server
 nohup python3 jmcp.py -f devices.json -t streamable-http -H 0.0.0.0 \
   > ~/jmcp.log 2>&1 &
 
-# Vérifier le démarrage
+# Verify startup
 sleep 3 && cat ~/jmcp.log
-# Doit afficher : "Streamable HTTP server started on http://0.0.0.0:30030"
+# Expected: "Streamable HTTP server started on http://0.0.0.0:30030"
 ```
 
-Le serveur expose l'endpoint MCP sur `http://<IP_SERVEUR>:30030/mcp/`.
+The server exposes the MCP endpoint at `http://<SERVER_IP>:30030/mcp/`.
 
-Pour relancer après un reboot :
+To restart after a reboot:
 
 ```bash
 cd ~/junos-mcp-server && \
@@ -281,54 +313,57 @@ cd ~/junos-mcp-server && \
 
 ---
 
-## Étape 10 — Connecter Claude Code au MCP Junos
+## Step 10 — Connect Claude Code to the Junos MCP
 
-Créer ou éditer `~/.claude/mcp.json` sur votre **Mac/PC client** :
+Create or edit `~/.claude/mcp.json` on your **Mac/PC client**:
 
 ```json
 {
   "mcpServers": {
     "junos-mcp": {
       "type": "http",
-      "url": "http://<IP_SERVEUR>:30030/mcp/"
+      "url": "http://<SERVER_IP>:30030/mcp/"
     }
   }
 }
 ```
 
-Remplacer `<IP_SERVEUR>` par l'IP du serveur Ubuntu (ici `172.30.193.14`).
+Replace `<SERVER_IP>` with your Ubuntu server's IP address (e.g. `172.30.193.14`).
 
-**Redémarrer Claude Code** pour charger le MCP.
+**Restart Claude Code** to load the MCP configuration.
 
----
+### How Claude connects to the Junos MCP
 
-## Utilisation avec Claude
+Once `~/.claude/mcp.json` is saved and Claude Code is restarted, the MCP tools are available **immediately and automatically** — you do not need to ask Claude to "connect" or "activate" anything.
 
-Une fois le MCP connecté, Claude peut interagir directement avec les routeurs :
+**From Claude Code (CLI or IDE extension):** Claude discovers the available MCP tools at startup. As soon as you describe a network task in natural language, Claude decides on its own whether to call a Junos MCP tool to answer or complete the task. No explicit invocation syntax needed — just describe what you want:
 
 ```
-# Exemples de requêtes à Claude :
-"Montre-moi les interfaces de R1"
-"Configure OSPF area 0 sur R1, R2 et R3"
-"Vérifie les sessions BGP sur tous les PE"
-"Simule une panne sur le lien R1-R2 et diagnostique"
+Show me the interfaces on R1
+Configure OSPF area 0 on R1, R2 and R3
+Check BGP sessions on all PE routers
+Simulate a failure on the R1-R2 link and diagnose
 ```
 
-### Outils MCP disponibles
+**From claude.ai (web chat):** The `~/.claude/mcp.json` file is specific to the Claude Code CLI and IDE extensions. It has **no effect** on the claude.ai web interface, which has its own separate MCP configuration mechanism.
 
-| Outil                   | Description                              |
+**How it works under the hood:** each time you send a message, Claude evaluates which tools are relevant. If the task involves Junos, it calls `execute_junos_command`, `load_and_commit_config`, etc. — the MCP server receives the call, opens a NETCONF session to the target router, executes the operation, and returns the result to Claude. The whole round-trip is transparent.
+
+### Available MCP tools
+
+| Tool                    | Description                              |
 |-------------------------|------------------------------------------|
-| `execute_junos_command` | Exécuter une commande show               |
-| `get_junos_config`      | Récupérer la configuration courante      |
-| `load_and_commit_config`| Pousser et commiter une configuration    |
-| `junos_config_diff`     | Comparer candidate vs running            |
-| `gather_device_facts`   | Infos système du routeur                 |
-| `get_router_list`       | Lister les routeurs configurés           |
+| `execute_junos_command` | Run a show command                       |
+| `get_junos_config`      | Retrieve the current configuration       |
+| `load_and_commit_config`| Push and commit a configuration          |
+| `junos_config_diff`     | Compare candidate vs running config      |
+| `gather_device_facts`   | System information for a router          |
+| `get_router_list`       | List configured routers                  |
 
 ---
 
-## Références
+## References
 
-- [Juniper/junos-mcp-server](https://github.com/Juniper/junos-mcp-server) — MCP officiel Juniper
-- [cRPD Deployment Guide](https://www.juniper.net/documentation/us/en/software/crpd/crpd-deployment/crpd-deployment.pdf) — Documentation Juniper
-- [Claude Code MCP](https://docs.anthropic.com/en/docs/claude-code/mcp) — Intégration MCP dans Claude Code
+- [Juniper/junos-mcp-server](https://github.com/Juniper/junos-mcp-server) — Official Juniper MCP server
+- [cRPD Deployment Guide](https://www.juniper.net/documentation/us/en/software/crpd/crpd-deployment/crpd-deployment.pdf) — Juniper documentation
+- [Claude Code MCP](https://docs.anthropic.com/en/docs/claude-code/mcp) — MCP integration in Claude Code

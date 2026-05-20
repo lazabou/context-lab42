@@ -331,11 +331,12 @@ Verify the EVPN type-5 deployment end-to-end on R1, R2, R3, R11 and R12.
 
 ## Rollback
 
-To reset all routers to base configuration (hostname + root password only) and start fresh:
+To reset all routers to base configuration and start fresh:
 
 **Prompt to Claude:**
 ```
 Reset R1, R2, R3, R11 and R12 to a clean base configuration.
-Keep only system host-name and root-authentication. Remove everything else.
+Keep only: system host-name, system root-authentication, and system services netconf ssh.
+Remove everything else (interfaces, protocols, routing-options, routing-instances, policy-options, system services ssh).
 Show the diff before committing and wait for confirmation.
 ```

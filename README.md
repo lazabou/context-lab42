@@ -1,15 +1,19 @@
 # context-lab42
 
-MPLS L3VPN network lab based on cRPD (Juniper) containers, operated by Claude via the official Junos MCP server.
+This lab provides a ready-to-use cRPD (Juniper containerized routing daemon) infrastructure, operable via the official Junos MCP server. The goal is to prepare the environment so that Claude can interact directly with the routers through natural language — configuring, verifying, and troubleshooting — without touching the CLI.
 
 > Friends don't let friends edit the CLI.
 
+The lab is organized in two phases:
+
+1. **Infrastructure preparation** (this file) — deploy the cRPD containers, wire the topology, enable NETCONF, and connect Claude Code to the Junos MCP server.
+2. **Use cases** (separate files in [`use-cases/`](use-cases/)) — each use case deploys a specific network scenario end-to-end using the MCP. The first one is [EVPN-MPLS](use-cases/evpn-mpls.md).
+
 ---
 
-## Logical Topology
+## Topology
 
 ```
-                          AS 65011
                         +---------+
                         |   R11   |
                         |  (CE)   |
@@ -18,42 +22,30 @@ MPLS L3VPN network lab based on cRPD (Juniper) containers, operated by Claude vi
                       /            \
              +-------+----+    +----+-------+
              |    R1      |    |    R2      |
-             |  PE        +----+  PE        |
-             | lo:10.0.0.1|    | lo:10.0.0.2|
-             |  AS 65000  |    |  AS 65000  |
+             |  (PE)      +----+  (PE)      |
              +-------+----+    +----+-------+
                       \              /
                        \            /
                     +---+----------+---+
                     |        R3        |
-                    |  PE lo:10.0.0.3  |
-                    |    AS 65000      |
+                    |       (PE)       |
                     +--------+---------+
                              |
                         +----+----+
                         |   R12   |
                         |  (CE)   |
-                        | AS 65012|
                         +---------+
 ```
 
-### Roles
+| Router | Role |
+|--------|------|
+| R1     | PE   |
+| R2     | PE   |
+| R3     | PE   |
+| R11    | CE   |
+| R12    | CE   |
 
-| Router | Role      | Loopback      | AS    |
-|--------|-----------|---------------|-------|
-| R1     | PE        | 10.0.0.1/32   | 65000 |
-| R2     | PE        | 10.0.0.2/32   | 65000 |
-| R3     | PE        | 10.0.0.3/32   | 65000 |
-| R11    | CE (VPN1) | 10.0.0.11/32  | 65011 |
-| R12    | CE (VPN1) | 10.0.0.12/32  | 65012 |
-
-### Target protocols (to be configured in Junos)
-
-- **OSPF** area 0 — PE backbone IGP
-- **LDP** — MPLS label distribution
-- **iBGP** vpnv4 — full mesh between PEs (AS 65000)
-- **eBGP** — PE↔CE (R11: AS 65011, R12: AS 65012)
-- **VRF VPN1** — L3VPN connecting R11 and R12, RT 65000:1
+R1, R2, R3 form a full-mesh PE triangle. R11 is dual-homed on R1 and R2. R12 is single-homed on R3. Routing protocols, addressing, and services are defined per use case.
 
 ---
 
@@ -61,24 +53,24 @@ MPLS L3VPN network lab based on cRPD (Juniper) containers, operated by Claude vi
 
 ### Networks
 
-| Network    | Type   | Purpose                                              |
-|------------|--------|------------------------------------------------------|
-| `lab`      | bridge | Shared L2 segment (mgmt + CE access) 192.168.100.0/24 |
+| Network    | Type   | Purpose                                                  |
+|------------|--------|----------------------------------------------------------|
+| `lab`      | bridge | Shared management segment — 192.168.100.0/24             |
 | `net-r1-r2`| bridge | Dedicated R1↔R2 link (pure L2, IPs configured in Junos) |
 | `net-r1-r3`| bridge | Dedicated R1↔R3 link (pure L2, IPs configured in Junos) |
 | `net-r2-r3`| bridge | Dedicated R2↔R3 link (pure L2, IPs configured in Junos) |
 
 ### Interfaces per container
 
-| Container | eth0 (lab)       | eth1           | eth2           |
-|-----------|------------------|----------------|----------------|
-| r1        | 192.168.100.2    | net-r1-r2 ↔ R2 | net-r1-r3 ↔ R3 |
-| r2        | 192.168.100.3    | net-r1-r2 ↔ R1 | net-r2-r3 ↔ R3 |
-| r3        | 192.168.100.4    | net-r1-r3 ↔ R1 | net-r2-r3 ↔ R2 |
-| r11       | 192.168.100.5    | —              | —              |
-| r12       | 192.168.100.6    | —              | —              |
+| Container | eth0 (lab)    | eth1           | eth2           |
+|-----------|---------------|----------------|----------------|
+| r1        | 192.168.100.2 | net-r1-r2 ↔ R2 | net-r1-r3 ↔ R3 |
+| r2        | 192.168.100.3 | net-r1-r2 ↔ R1 | net-r2-r3 ↔ R3 |
+| r3        | 192.168.100.4 | net-r1-r3 ↔ R1 | net-r2-r3 ↔ R2 |
+| r11       | 192.168.100.5 | —              | —              |
+| r12       | 192.168.100.6 | —              | —              |
 
-All routing IPs are configured inside Junos. eth0/eth1/eth2 appear as `et-0/0/0`, `et-0/0/1`, `et-0/0/2` depending on the cRPD version.
+eth0/eth1/eth2 appear inside Junos as `et-0/0/0`, `et-0/0/1`, `et-0/0/2` depending on the cRPD version. All routing IPs are configured in Junos (never on the Docker side).
 
 ---
 
@@ -272,7 +264,7 @@ Create `~/junos-mcp-server/devices.json` on the **Ubuntu server**:
 
 **Where do these IPs come from?**
 
-The `lab` Docker bridge network was created with subnet `192.168.100.0/24` (see `deploy.sh`). Docker assigns IPs sequentially to containers as they join the network:
+The `lab` Docker bridge network was created with subnet `192.168.100.0/24` (see `deploy.sh`). Docker assigns IPs sequentially as containers join the network:
 - `.1` is reserved for the Docker gateway
 - `r1` → `.2`, `r2` → `.3`, `r3` → `.4`, `r11` → `.5`, `r12` → `.6`
 
@@ -336,14 +328,7 @@ Replace `<SERVER_IP>` with your Ubuntu server's IP address (e.g. `172.30.193.14`
 
 Once `~/.claude/mcp.json` is saved and Claude Code is restarted, the MCP tools are available **immediately and automatically** — you do not need to ask Claude to "connect" or "activate" anything.
 
-**From Claude Code (CLI or IDE extension):** Claude discovers the available MCP tools at startup. As soon as you describe a network task in natural language, Claude decides on its own whether to call a Junos MCP tool to answer or complete the task. No explicit invocation syntax needed — just describe what you want:
-
-```
-Show me the interfaces on R1
-Configure OSPF area 0 on R1, R2 and R3
-Check BGP sessions on all PE routers
-Simulate a failure on the R1-R2 link and diagnose
-```
+**From Claude Code (CLI or IDE extension):** Claude discovers the available MCP tools at startup. As soon as you describe a network task in natural language, Claude decides on its own whether to call a Junos MCP tool to answer or complete the task. No explicit invocation syntax needed — just describe what you want.
 
 **From claude.ai (web chat):** The `~/.claude/mcp.json` file is specific to the Claude Code CLI and IDE extensions. It has **no effect** on the claude.ai web interface, which has its own separate MCP configuration mechanism.
 
@@ -359,6 +344,16 @@ Simulate a failure on the R1-R2 link and diagnose
 | `junos_config_diff`     | Compare candidate vs running config      |
 | `gather_device_facts`   | System information for a router          |
 | `get_router_list`       | List configured routers                  |
+
+---
+
+## Use Cases
+
+Once the infrastructure is ready, use cases are run from the [`use-cases/`](use-cases/) directory. Each use case is self-contained: it describes the scenario, the expected topology, and the step-by-step configuration Claude applies via the MCP.
+
+| Use case | Description |
+|----------|-------------|
+| [EVPN-MPLS](use-cases/evpn-mpls.md) | MPLS backbone with OSPF + LDP, EVPN service over the PE triangle |
 
 ---
 

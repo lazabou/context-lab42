@@ -181,41 +181,51 @@ This step configures an L3VPN-style EVPN service using **route type 5 (IP Prefix
 
 R11 is **multi-homed in all-active mode** to R1 and R2 via LACP with a shared ESI. R12 is single-homed to R3.
 
-> **Why an EVPN L2 instance is needed alongside the type-5 VRF:**  
-> ESI multi-homing (type 1 and type 4 routes) is signalled via the EVPN control plane, not via the VRF. R1 and R2 must share a common EVPN instance (`EVI-ESI`, instance-type `evpn`) so they can exchange:
-> - **Type 1** — Ethernet Auto-Discovery routes (per-ESI and per-EVI) used to advertise reachability and fast convergence
-> - **Type 4** — Ethernet Segment routes used for Designated Forwarder (DF) election between R1 and R2
+> **Architecture : mac-vrf (vlan-aware) + T5-VRF**
 >
-> Without this L2 EVPN instance, the ESI is configured on the interface but the PE nodes cannot elect a DF, and the all-active multi-homing loop prevention (split-horizon) does not operate correctly.
+> Deux instances complémentaires sont utilisées :
+>
+> | Instance | Type | Rôle |
+> |----------|------|------|
+> | `MAC-VRF` | `mac-vrf` / `vlan-aware` | L2 EVPN — bridge domain VLAN 11, signalisation ESI (type 1, type 4), élection DF |
+> | `T5-VRF`  | `vrf`                    | L3 EVPN — routes type 5 (IP Prefix), reachability inter-sites |
+>
+> L'IRB (irb.11) fait le lien entre les deux : il est à la fois la L3 gateway du bridge domain VLAN 11 dans MAC-VRF et l'interface L3 injectée dans T5-VRF.
+>
+> Pourquoi `mac-vrf` plutôt que `evpn` pour l'ESI ?  
+> `mac-vrf` avec `vlan-aware` est l'approche moderne (Junos 21.1+). Elle supporte nativement le multi-vlan par EVI, le service-type vlan-aware, et est compatible avec l'ESI all-active multi-homing via les routes type 1 et type 4.
 
 **Prompt to Claude:**
 ```
-Configure EVPN type-5 VRF with ESI multi-homing on R1, R2 and R3.
-
-=== EVPN L2 instance for ESI signalling (R1 and R2 only) ===
-Routing instance name: EVI-ESI, instance-type evpn.
-Route-distinguisher: <loopback>:11 (10.0.0.1:11 on R1, 10.0.0.2:11 on R2).
-VRF target: target:65000:11 (import and export).
-This instance carries type-1 and type-4 routes for ESI 00:00:00:00:00:00:00:00:00:11.
-Bind eth3 to EVI-ESI on R1 and R2.
+Configure EVPN multi-homing with mac-vrf (vlan-aware) and type-5 VRF on R1, R2 and R3.
 
 === ESI on R1 eth3 and R2 eth3 ===
   esi 00:00:00:00:00:00:00:00:00:11
   all-active mode
   LACP system-id 00:00:00:00:00:11
 
+=== MAC-VRF — EVPN L2 instance (R1 and R2 only) ===
+Routing instance name: MAC-VRF, instance-type mac-vrf, service-type vlan-aware.
+Route-distinguisher: <loopback>:11 (10.0.0.1:11 on R1, 10.0.0.2:11 on R2).
+VRF target: target:65000:11 (import and export).
+EVPN encapsulation: mpls.
+Bridge domain: vlan11, vlan-id 11, routing-interface irb.11.
+Interface: eth3 (CE-facing, carries VLAN 11 traffic toward R11).
+
+=== IRB gateway (R1 and R2) ===
+irb.11 family inet:
+  R1: 192.168.11.1/24 + virtual-gateway-address 192.168.11.254
+  R2: 192.168.11.2/24 + virtual-gateway-address 192.168.11.254
+(same virtual-gateway-address = anycast gateway shared by R1 and R2)
+
 === T5-VRF — IP prefix VRF (all PEs) ===
 Routing instance name: T5-VRF, instance-type vrf.
 Route-distinguisher: <loopback>:100 (10.0.0.1:100 / 10.0.0.2:100 / 10.0.0.3:100).
 VRF target: target:65000:100 (import and export).
 EVPN: ip-prefix-routes, MPLS encapsulation.
-
-R1 eth3: family inet address 192.168.11.1/24 — add to T5-VRF
-R2 eth3: family inet address 192.168.11.2/24 — add to T5-VRF
-Virtual Gateway Address (anycast): 192.168.11.254/24 on R1 and R2 (same IP, same MAC)
-
-=== R12 — single-homed to R3 ===
-R3 eth3: family inet address 192.168.12.3/24 — add to T5-VRF
+Interfaces in T5-VRF:
+  R1 and R2: irb.11 (gateway for the R11 segment)
+  R3: eth3 with family inet address 192.168.12.3/24
 
 Show the diff and wait for confirmation before committing.
 ```

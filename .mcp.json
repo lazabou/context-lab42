@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "junos-mcp": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "http://172.30.193.14:30030/mcp/"
     }
   }

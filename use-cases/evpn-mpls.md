@@ -204,6 +204,7 @@ R11 is connected to R1 and R2 via **two separate L3 subnets** (no aggregation, n
 > **cRPD requirements for routing-instances:**
 > - Reference CE-facing interfaces **without unit suffix** in the routing-instance: use `eth3`, not `eth3.0` (same rule as OSPF/LDP).
 > - `encapsulation mpls` is the default for `ip-prefix-routes` and need not be specified explicitly.
+> - `advertise direct-nexthop` alone does **not** export /32 prefixes (loopbacks, CE host routes) as EVPN type-5. An explicit `export` policy covering `direct` and `bgp` protocols must be applied under `ip-prefix-routes`.
 
 **Prompt to Claude:**
 ```
@@ -231,6 +232,12 @@ Interfaces in T5-VRF:
   R2: eth3, lo0.1
   R3: eth3, lo0.1
 
+=== EVPN export policy (required for /32 advertisement) ===
+Create policy EVPN-T5-EXPORT on all PEs:
+  term 1: from protocol direct → accept
+  term 2: from protocol bgp → accept
+Apply: set routing-instances T5-VRF protocols evpn ip-prefix-routes export EVPN-T5-EXPORT
+
 Show the diff and wait for confirmation before committing.
 ```
 
@@ -253,17 +260,20 @@ Configure eBGP PE-CE sessions.
 === On R1 (in routing-instance T5-VRF) ===
 BGP group CE-R11, type external, peer-as 65011.
 Neighbor 192.168.111.11.
-Export policy: advertise all direct routes from T5-VRF.
+Export policy EXPORT-TO-CE: advertise direct + bgp + evpn routes from T5-VRF.
+  term 1: from protocol direct → accept
+  term 2: from protocol bgp → accept
+  term 3: from protocol evpn → accept   ← required to redistribute EVPN-learned routes to CE
 
 === On R2 (in routing-instance T5-VRF) ===
 BGP group CE-R11, type external, peer-as 65011.
 Neighbor 192.168.112.11.
-Export policy: advertise all direct routes from T5-VRF.
+Export policy EXPORT-TO-CE (same 3 terms as R1).
 
 === On R3 (in routing-instance T5-VRF) ===
 BGP group CE-R12, type external, peer-as 65012.
 Neighbor 192.168.12.12.
-Export policy: advertise all direct routes from T5-VRF.
+Export policy EXPORT-TO-CE (same 3 terms).
 
 === On R11 (global routing table) ===
 BGP group PE-R1, type external, local-as 65011, peer-as 65000, neighbor 192.168.111.1.
@@ -303,10 +313,14 @@ Verify the EVPN type-5 deployment end-to-end on R1, R2, R3, R11 and R12.
 
 === CE side ===
 - Show BGP summary on R11 and R12 — expected: eBGP sessions Established.
-- Show route table on R11 — expected: PE lo0.1 addresses (10.0.1.1/32, 10.0.1.2/32, 10.0.1.3/32)
-  and remote CE subnet (192.168.12.0/24, 10.0.1.12/32) learned via eBGP from PEs.
-- Show route table on R12 — expected: PE lo0.1 addresses and R11 subnets
-  (192.168.111.0/24, 192.168.112.0/24, 10.0.1.11/32) learned via eBGP.
+- Show route table on R11 — expected (learned via eBGP from R1 and R2, dual-homed):
+  PE lo0.1: 10.0.1.1/32, 10.0.1.2/32, 10.0.1.3/32
+  Remote CE loopback: 10.0.1.12/32 (AS path: 65000 65012)
+  Remote CE subnet: 192.168.12.0/24
+- Show route table on R12 — expected (learned via eBGP from R3):
+  PE lo0.1: 10.0.1.1/32, 10.0.1.2/32, 10.0.1.3/32
+  Remote CE loopback: 10.0.1.11/32 (AS path: 65000 65011)
+  Remote CE subnets: 192.168.111.0/24, 192.168.112.0/24
 ```
 
 ---

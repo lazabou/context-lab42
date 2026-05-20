@@ -45,7 +45,7 @@ The lab is organized in two phases:
 | R11    | CE   |
 | R12    | CE   |
 
-R1, R2, R3 form a full-mesh PE triangle. R11 is dual-homed on R1 and R2. R12 is single-homed on R3. Routing protocols, addressing, and services are defined per use case.
+R1, R2, R3 form a full-mesh PE triangle. R11 is dual-homed (LACP, all-active ESI) on R1 and R2. R12 is single-homed on R3. Routing protocols, addressing, and services are defined per use case.
 
 ---
 
@@ -62,13 +62,13 @@ R1, R2, R3 form a full-mesh PE triangle. R11 is dual-homed on R1 and R2. R12 is 
 
 ### Interfaces per container
 
-| Container | eth0 (lab)    | eth1           | eth2           |
-|-----------|---------------|----------------|----------------|
-| r1        | 192.168.100.2 | net-r1-r2 ↔ R2 | net-r1-r3 ↔ R3 |
-| r2        | 192.168.100.3 | net-r1-r2 ↔ R1 | net-r2-r3 ↔ R3 |
-| r3        | 192.168.100.4 | net-r1-r3 ↔ R1 | net-r2-r3 ↔ R2 |
-| r11       | 192.168.100.5 | —              | —              |
-| r12       | 192.168.100.6 | —              | —              |
+| Container | eth0 (lab)    | eth1              | eth2              | eth3              |
+|-----------|---------------|-------------------|-------------------|-------------------|
+| r1        | 192.168.100.2 | net-r1-r2 ↔ R2    | net-r1-r3 ↔ R3    | net-r1-r11 ↔ R11  |
+| r2        | 192.168.100.3 | net-r1-r2 ↔ R1    | net-r2-r3 ↔ R3    | net-r2-r11 ↔ R11  |
+| r3        | 192.168.100.4 | net-r1-r3 ↔ R1    | net-r2-r3 ↔ R2    | net-r3-r12 ↔ R12  |
+| r11       | 192.168.100.5 | net-r1-r11 ↔ R1   | net-r2-r11 ↔ R2   | —                 |
+| r12       | 192.168.100.6 | net-r3-r12 ↔ R3   | —                 | —                 |
 
 All routing IPs are configured in Junos (never on the Docker side). See the [cRPD interface behaviour](#crpd-interface-behaviour) section for important differences with classic Junos.
 

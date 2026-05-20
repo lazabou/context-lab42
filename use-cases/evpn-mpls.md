@@ -11,53 +11,64 @@ This use case configures and validates an MPLS backbone with OSPF, LDP, and an E
 ## Scenario
 
 ```
-        +------+          +------+
-        |  R11 |          |  R12 |
-        |  CE  |          |  CE  |
-        +--+---+          +---+--+
-           |                  |
-        et-0/0/1           et-0/0/1
-           |                  |
-     +-----+----+        +----+-----+
-     |    R1    +--------+    R2    |
-     |    PE    | et-0/0/1  |    PE    |
-     +-----+----+        +----+-----+
-           \  et-0/0/2  et-0/0/2  /
-            \                /
-             \              /
-           +--+------------+--+
-           |        R3        |
-           |        PE        |
-           +------------------+
+          +----------+
+          |   R11    |
+          |   CE     |
+          +--+----+--+
+            eth1  eth2  (LACP bond toward R1 and R2)
+             |      |
+            eth3  eth3
+             |      |
+      +------+--+  +--+------+
+      |   R1    +--+   R2    |
+      |   PE    |eth1  eth1  |   PE    |
+      +----+----+  +----+----+
+          eth2          eth2
+            \              /
+             \            /
+           +--+----------+--+
+           |       R3       |
+           |       PE       |
+           +-------+--------+
+                   |eth3
+                   |
+              +----+----+
+              |   R12   |
+              |   CE    |
+              +---------+
 ```
 
 ### Interface mapping
 
-> **cRPD naming:** cRPD exposes Linux interface names directly in Junos. Use `eth0`, `eth1`, `eth2` — **not** `et-0/0/0`, `et-0/0/1`, `et-0/0/2`.
+> **cRPD naming:** cRPD exposes Linux interface names directly in Junos. Use `eth0`–`eth3` — **not** `et-0/0/x`.
 
-| Docker interface | Junos interface | Connected to |
-|-----------------|-----------------|--------------|
-| eth0            | eth0            | `lab` network (management) — **skip, do not configure routing IPs** |
-| eth1            | eth1            | PE-PE or PE-CE link (see table below) |
-| eth2            | eth2            | PE-PE link (PEs only) |
+| Router | eth0       | eth1           | eth2           | eth3             |
+|--------|-----------|----------------|----------------|------------------|
+| R1     | management | PE-PE ↔ R2     | PE-PE ↔ R3     | PE-CE ↔ R11      |
+| R2     | management | PE-PE ↔ R1     | PE-PE ↔ R3     | PE-CE ↔ R11      |
+| R3     | management | PE-PE ↔ R1     | PE-PE ↔ R2     | PE-CE ↔ R12      |
+| R11    | management | PE-CE ↔ R1     | PE-CE ↔ R2     | —                |
+| R12    | management | PE-CE ↔ R3     | —              | —                |
+
+> **eth0 (management):** skip — do not configure routing IPs on this interface.
 
 ### Addressing plan
 
-| Link      | Junos interface | Subnet        | Local IP   | Remote IP  | Remote router |
-|-----------|----------------|---------------|------------|------------|---------------|
-| R1 lo0    | lo0.0          | 10.0.0.1/32   | —          | —          | —             |
-| R2 lo0    | lo0.0          | 10.0.0.2/32   | —          | —          | —             |
-| R3 lo0    | lo0.0          | 10.0.0.3/32   | —          | —          | —             |
-| R1 ↔ R2  | R1: eth1       | 10.1.12.0/30  | 10.1.12.1  | 10.1.12.2  | R2            |
-| R1 ↔ R3  | R1: eth2       | 10.1.13.0/30  | 10.1.13.1  | 10.1.13.2  | R3            |
-| R2 ↔ R1  | R2: eth1       | 10.1.12.0/30  | 10.1.12.2  | 10.1.12.1  | R1            |
-| R2 ↔ R3  | R2: eth2       | 10.1.23.0/30  | 10.1.23.1  | 10.1.23.2  | R3            |
-| R3 ↔ R1  | R3: eth1       | 10.1.13.0/30  | 10.1.13.2  | 10.1.13.1  | R1            |
-| R3 ↔ R2  | R3: eth2       | 10.1.23.0/30  | 10.1.23.2  | 10.1.23.1  | R2            |
-| R2 ↔ R11 | —              | 10.1.211.0/30 | 10.1.211.1 | 10.1.211.2 | R11           |
-| R3 ↔ R12 | —              | 10.1.312.0/30 | 10.1.312.1 | 10.1.312.2 | R12           |
-
-> **Note on CE links:** in this lab, R11 and R12 are on the `lab` management bridge (eth0). A dedicated PE-CE physical link on eth1/et-0/0/1 is only available on routers that are not already using that interface for a PE-PE link. Adjust accordingly if you rewire the topology.
+| Link              | Junos interface | Subnet           | Local IP        | Remote IP       | Remote router       |
+|-------------------|----------------|------------------|-----------------|-----------------|---------------------|
+| R1 lo0            | lo0.0          | 10.0.0.1/32      | —               | —               | —                   |
+| R2 lo0            | lo0.0          | 10.0.0.2/32      | —               | —               | —                   |
+| R3 lo0            | lo0.0          | 10.0.0.3/32      | —               | —               | —                   |
+| R1 ↔ R2           | R1: eth1       | 10.1.12.0/30     | 10.1.12.1       | 10.1.12.2       | R2                  |
+| R1 ↔ R3           | R1: eth2       | 10.1.13.0/30     | 10.1.13.1       | 10.1.13.2       | R3                  |
+| R2 ↔ R1           | R2: eth1       | 10.1.12.0/30     | 10.1.12.2       | 10.1.12.1       | R1                  |
+| R2 ↔ R3           | R2: eth2       | 10.1.23.0/30     | 10.1.23.1       | 10.1.23.2       | R3                  |
+| R3 ↔ R1           | R3: eth1       | 10.1.13.0/30     | 10.1.13.2       | 10.1.13.1       | R1                  |
+| R3 ↔ R2           | R3: eth2       | 10.1.23.0/30     | 10.1.23.2       | 10.1.23.1       | R2                  |
+| R1 ↔ R11          | R1: eth3       | 192.168.11.0/24  | 192.168.11.1    | 192.168.11.11   | R11 (multi-homed)   |
+| R2 ↔ R11          | R2: eth3       | 192.168.11.0/24  | 192.168.11.2    | 192.168.11.11   | R11 (multi-homed)   |
+| VGA R11 segment   | —              | 192.168.11.0/24  | 192.168.11.254  | —               | Anycast GW (R1+R2)  |
+| R3 ↔ R12          | R3: eth3       | 192.168.12.0/24  | 192.168.12.3    | 192.168.12.12   | R12                 |
 
 ### Protocols
 
@@ -164,16 +175,36 @@ Expected: 2 established iBGP sessions per PE.
 
 ---
 
-## Step 5 — Configure EVPN service
+## Step 5 — Configure EVPN VRF (type 5 — IP Prefix routes)
 
-Define the EVPN instance and bind the CE-facing interfaces.
+This step configures an L3VPN-style EVPN service using **route type 5 (IP Prefix)**. Each PE gets a VRF routing instance (`T5-VRF`) that advertises IP prefixes over the EVPN control plane with MPLS encapsulation.
+
+R11 is **multi-homed in all-active mode** to R1 and R2 via LACP with a shared ESI. R12 is single-homed to R3.
 
 **Prompt to Claude:**
 ```
-Configure an EVPN instance (EVI 100) on R1, R2 and R3.
-Use route-distinguisher <loopback>:100 and route-target 65000:100 (import and export).
-Bind the CE-facing interface on each PE to the EVI.
-R1 and R2 connect to R11; R3 connects to R12.
+Configure EVPN type-5 VRF on R1, R2 and R3.
+
+=== VRF (all PEs) ===
+Routing instance name: T5-VRF, instance-type vrf.
+Route-distinguisher: <loopback>:100 (10.0.0.1:100 / 10.0.0.2:100 / 10.0.0.3:100).
+VRF target: target:65000:100 (import and export).
+EVPN: ip-prefix-routes, MPLS encapsulation.
+
+=== R11 — multi-homed all-active to R1 and R2 ===
+ESI on R1 eth3 and R2 eth3:
+  esi 00:00:00:00:00:00:00:00:00:11
+  all-active mode
+  LACP system-id 00:00:00:00:00:11
+
+R1 eth3: family inet address 192.168.11.1/24 — add to T5-VRF
+R2 eth3: family inet address 192.168.11.2/24 — add to T5-VRF
+Virtual Gateway Address (anycast): 192.168.11.254/24 on R1 and R2 (same IP, same MAC)
+
+=== R12 — single-homed to R3 ===
+R3 eth3: family inet address 192.168.12.3/24 — add to T5-VRF
+
+Show the diff and wait for confirmation before committing.
 ```
 
 ---
@@ -182,11 +213,11 @@ R1 and R2 connect to R11; R3 connects to R12.
 
 **Prompt to Claude:**
 ```
-Verify the EVPN-MPLS deployment end-to-end on R1, R2 and R3:
-- Show EVPN instance summary
-- Show BGP EVPN routes (show bgp evpn)
-- Show MPLS forwarding table (show mpls forwarding)
-- Show MAC table for EVI 100
+Verify the EVPN type-5 deployment end-to-end on R1, R2 and R3:
+- Show routing instance summary (show route instance VRF-EVPN)
+- Show EVPN type-5 prefixes in BGP (show bgp neighbor 10.0.0.x advertised-routes)
+- Show the VRF routing table (show route table VRF-EVPN.inet.0)
+- Show MPLS label bindings (show route table mpls.0)
 ```
 
 ---

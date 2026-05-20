@@ -12,10 +12,10 @@ echo ""
 echo "=== [2/4] Creating Docker networks ==="
 # Management / shared L2
 docker network create --subnet 192.168.100.0/24 lab 2>/dev/null || echo "lab already exists"
-# PE-PE dedicated L2 segments (IPs configured in Junos)
-docker network create net-r1-r2 2>/dev/null || echo "net-r1-r2 already exists"
-docker network create net-r1-r3 2>/dev/null || echo "net-r1-r3 already exists"
-docker network create net-r2-r3 2>/dev/null || echo "net-r2-r3 already exists"
+# PE-PE dedicated L2 segments — no IPAM so Docker assigns no IPs (Junos handles all IPs)
+docker network create --ipam-driver null net-r1-r2 2>/dev/null || echo "net-r1-r2 already exists"
+docker network create --ipam-driver null net-r1-r3 2>/dev/null || echo "net-r1-r3 already exists"
+docker network create --ipam-driver null net-r2-r3 2>/dev/null || echo "net-r2-r3 already exists"
 
 echo ""
 echo "=== [3/4] Creating containers ==="

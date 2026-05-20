@@ -91,33 +91,28 @@ This use case configures and validates an MPLS backbone with OSPF, LDP, and an E
 
 **Prompt to Claude:**
 ```
-Configure interfaces and loopbacks on R1, R2, R3, R11 and R12 using the following addressing plan.
+Configure interfaces and loopbacks on R1, R2 and R3 using the following addressing plan.
 Do not configure anything on eth0 (management interface).
 Use eth1 and eth2 as the PE-PE interface names (cRPD uses Linux interface names directly in Junos).
 
 R1:
   lo0.0   10.0.0.1/32
-  lo0.1   10.0.1.1/32
   eth1    10.1.12.1/30   (link to R2)
   eth2    10.1.13.1/30   (link to R3)
 
 R2:
   lo0.0   10.0.0.2/32
-  lo0.1   10.0.1.2/32
   eth1    10.1.12.2/30   (link to R1)
   eth2    10.1.23.1/30   (link to R3)
 
 R3:
   lo0.0   10.0.0.3/32
-  lo0.1   10.0.1.3/32
   eth1    10.1.13.2/30   (link to R1)
   eth2    10.1.23.2/30   (link to R2)
 
-R11:
-  lo0.0   10.0.1.11/32   (cRPD limitation: lo0.1 interdit dans master routing-instance si lo0.0 system implicite existe)
-
-R12:
-  lo0.0   10.0.1.12/32
+Also configure lo0.0 on R11 and R12 (CE loopback, advertised via eBGP in Step 6):
+  R11: lo0.0   10.0.1.11/32
+  R12: lo0.0   10.0.1.12/32
 ```
 
 ---
@@ -219,6 +214,11 @@ Configure EVPN type-5 VRF (T5-VRF) on R1, R2 and R3.
   R2 eth3: 192.168.112.2/24  (link to R11)
   R3 eth3: 192.168.12.3/24   (link to R12)
 
+=== PE loopbacks in VRF (lo0.1 — configured at this step) ===
+  R1 lo0.1: 10.0.1.1/32
+  R2 lo0.1: 10.0.1.2/32
+  R3 lo0.1: 10.0.1.3/32
+
 === T5-VRF — IP prefix VRF (all PEs) ===
 Routing instance name: T5-VRF, instance-type vrf.
 Route-distinguisher: <loopback>:100
@@ -290,12 +290,23 @@ Show route table T5-VRF.inet.0 on R1 — expected: CE routes (10.0.1.11/32 from 
 
 **Prompt to Claude:**
 ```
-Verify the EVPN type-5 deployment end-to-end on R1, R2 and R3:
-- Show routing instance summary (show route instance)
-- Show the VRF routing table (show route table T5-VRF.inet.0)
-- Show EVPN type-5 prefixes advertised to BGP peers (show route advertising-protocol bgp <peer>)
-- Show MPLS label bindings (show route table mpls.0)
-- Show BGP summary (show bgp summary)
+Verify the EVPN type-5 deployment end-to-end on R1, R2, R3, R11 and R12.
+
+=== PE side ===
+- Show BGP summary on R1, R2, R3 — expected: iBGP EVPN sessions + eBGP CE sessions all Established.
+- Show VRF routing table on each PE (show route table T5-VRF.inet.0) —
+  expected: lo0.1 of all PEs (10.0.1.1/32, 10.0.1.2/32, 10.0.1.3/32),
+  CE subnets (192.168.111.0/24, 192.168.112.0/24, 192.168.12.0/24),
+  and CE loopbacks (10.0.1.11/32, 10.0.1.12/32) learned via eBGP.
+- Show EVPN type-5 prefixes advertised to peers (show route advertising-protocol bgp <peer>).
+- Show MPLS label bindings (show route table mpls.0).
+
+=== CE side ===
+- Show BGP summary on R11 and R12 — expected: eBGP sessions Established.
+- Show route table on R11 — expected: PE lo0.1 addresses (10.0.1.1/32, 10.0.1.2/32, 10.0.1.3/32)
+  and remote CE subnet (192.168.12.0/24, 10.0.1.12/32) learned via eBGP from PEs.
+- Show route table on R12 — expected: PE lo0.1 addresses and R11 subnets
+  (192.168.111.0/24, 192.168.112.0/24, 10.0.1.11/32) learned via eBGP.
 ```
 
 ---

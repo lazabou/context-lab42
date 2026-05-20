@@ -307,25 +307,7 @@ cd ~/junos-mcp-server && \
 
 ## Step 10 — Connect Claude to the Junos MCP
 
-There are two Claude clients, each with a different MCP configuration mechanism:
-
-| Client | MCP scope | Config file |
-|--------|-----------|-------------|
-| **Claude Code CLI** (`claude` in terminal) | Project-scoped | `.mcp.json` at repo root |
-| **Claude Mac desktop app** | Global (all sessions) | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-
-Both work equally well for operating this lab — the only difference is scope.
-
----
-
-### Option A — Claude Code CLI (project-scoped)
-
-The file [`.mcp.json`](.mcp.json) at the root of this repo declares the Junos MCP server. Claude Code detects it automatically when you open a session from this directory:
-
-```bash
-cd context-lab42
-claude
-```
+The MCP is configured **at project scope** via the file [`.mcp.json`](.mcp.json) at the root of this repo. Both the Claude Code CLI and the Claude Mac desktop app read this file automatically when you open a session from this directory.
 
 ```json
 {
@@ -338,39 +320,15 @@ claude
 }
 ```
 
-`junos-mcp` is only active in this project — it is invisible to other Claude Code sessions.
+`junos-mcp` is only active when working in this project — it is not exposed to other sessions.
 
----
+**Claude Code CLI:** open a terminal in the repo directory and run `claude`. The MCP loads automatically.
 
-### Option B — Claude Mac desktop app (global)
+**Claude Mac desktop app:** open a session pointing to this repo directory. The app reads `.mcp.json` from the project root the same way the CLI does. No additional configuration needed.
 
-The Mac desktop app does not read `.mcp.json`. MCP servers must be declared globally in:
+> **Note:** the Mac desktop app's global config file (`~/Library/Application Support/Claude/claude_desktop_config.json`) does **not** support HTTP MCP servers — do not add `junos-mcp` there, it will produce an error on startup and be ignored.
 
-```
-~/Library/Application Support/Claude/claude_desktop_config.json
-```
-
-Add the `mcpServers` key alongside the existing `preferences`:
-
-```json
-{
-  "mcpServers": {
-    "junos-mcp": {
-      "type": "http",
-      "url": "http://localhost:30030/mcp/"
-    }
-  },
-  "preferences": {
-    ...
-  }
-}
-```
-
-**Restart the Claude app** after saving the file (Cmd+Q then relaunch).
-
-> **Is global scope a problem?** Not really — the MCP only connects to this lab's routers and does nothing in unrelated sessions unless you explicitly ask about Junos. `CLAUDE.md` at the root of this repo also defines strict rules (MCP-only access, mandatory diff before commit, lab scope only) that Claude applies automatically when working in this project.
-
-**If you are setting up on a new machine**, replace `localhost:30030` with your server IP if you are not using the SSH tunnel (see troubleshooting below).
+**If you are setting up on a new machine**, update the `url` field in `.mcp.json` with your server IP if you are not using the SSH tunnel (see troubleshooting below).
 
 ---
 

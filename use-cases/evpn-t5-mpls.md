@@ -336,7 +336,11 @@ To reset all routers to base configuration and start fresh:
 **Prompt to Claude:**
 ```
 Reset R1, R2, R3, R11 and R12 to a clean base configuration.
-Keep only: system host-name, system root-authentication, and system services netconf ssh.
-Remove everything else (interfaces, protocols, routing-options, routing-instances, policy-options, system services ssh).
+Keep only:
+  - system host-name
+  - system root-authentication
+  - system services netconf ssh
+  - system services ssh root-login allow   ← required for NETCONF password auth on port 830
+Remove everything else (interfaces, protocols, routing-options, routing-instances, policy-options).
 Show the diff before committing and wait for confirmation.
 ```
